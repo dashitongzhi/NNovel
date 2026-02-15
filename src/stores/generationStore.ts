@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { STAGE_ORDER } from "@/config/defaults";
 import {
   getGenerateStatus,
+  pauseGenerate,
   getRecovery,
   resumeGenerate,
   savePauseSnapshot,
@@ -66,13 +67,14 @@ let streamFinal = false;
 let pollingNoChangeRounds = 0;
 let pollingLastPartial = "";
 let pendingStartToken: { cancelled: boolean } | null = null;
-const actionLastAt = new Map<string, number>();
 
 const TYPEWRITER_ENABLED_KEY = "writer:typewriterEnabled";
 const TYPEWRITER_SPEED_KEY = "writer:typewriterSpeed";
 
 function stripPauseMarkerPrefix(text: string): string {
-  return String(text || "").replace(/^\s*已暂停(?:\.{3}|…)?\s*/u, "");
+  return String(text || "")
+    .replace(/^\s*已暂停(?:\.{3}|…)?\s*/u, "")
+    .replace(/^\s*临时暂停快照[:：]?\s*/u, "");
 }
 
 function readTypewriterEnabled(): boolean {
@@ -98,14 +100,6 @@ function requestTag(requestId = ""): string {
   const rid = String(requestId || useGenerationStore.getState().requestId || "").trim();
   if (!rid) return "";
   return ` [${rid}]`;
-}
-
-function actionDebounced(action: string, ms = 220): boolean {
-  const now = Date.now();
-  const prev = actionLastAt.get(action) || 0;
-  if (now - prev < ms) return true;
-  actionLastAt.set(action, now);
-  return false;
 }
 
 function classifyGenerationIssue(rawMessage: string, code = ""): { type: string; detail: string } {
@@ -152,8 +146,14 @@ function classifyGenerationIssue(rawMessage: string, code = ""): { type: string;
   if (/quota|insufficient|balance|credit|余额|额度不足|资源包/.test(lower) || /余额不足|额度不足/.test(message)) {
     return { type: "余额不足", detail: message };
   }
-  if (/invalid api key|api key|unauthorized|forbidden|permission|token|401|403/.test(lower) || /令牌|密钥无效|鉴权失败|认证失败/.test(message)) {
-    return { type: "令牌失效", detail: message };
+  if (/forbidden|permission|权限不足/.test(lower) || /权限不足|无权限/.test(message)) {
+    return { type: "权限不足", detail: message };
+  }
+  if (/invalid api key|api key|token|401|密钥/.test(lower) || /令牌|密钥无效/.test(message)) {
+    return { type: "密钥失效", detail: message };
+  }
+  if (/unauthorized|auth|认证|鉴权|403/.test(lower) || /鉴权失败|认证失败/.test(message)) {
+    return { type: "鉴权失败", detail: message };
   }
   if (/proxy|407|tunnel|代理/.test(lower) || /代理/.test(message)) {
     return { type: "代理失败", detail: message };
@@ -246,7 +246,7 @@ function queueStreamingPreview(content: string, finalize = false): void {
     streamIndex = streamTarget.length;
   }
 
-  useGenerationStore.setState({ skipVisible: streamFinal });
+  useGenerationStore.setState({ skipVisible: streamFinal && streamIndex < streamTarget.length });
 
   if (typingTimer) return;
 
@@ -255,7 +255,10 @@ function queueStreamingPreview(content: string, finalize = false): void {
 
     if (streamIndex < streamTarget.length) {
       streamIndex += 1;
-      useGenerationStore.setState({ generatedText: streamTarget.slice(0, streamIndex) });
+      useGenerationStore.setState({
+        generatedText: streamTarget.slice(0, streamIndex),
+        skipVisible: streamFinal && streamIndex < streamTarget.length,
+      });
       if (latest.stage === "queued") {
         setStage("generating");
       }
@@ -266,6 +269,8 @@ function queueStreamingPreview(content: string, finalize = false): void {
     typingTimer = null;
     if (streamFinal) {
       finalizeGeneratedOutput(streamTarget, true);
+    } else {
+      useGenerationStore.setState({ skipVisible: false });
     }
   };
 
@@ -346,6 +351,17 @@ async function poll(taskId: string): Promise<void> {
       return;
     }
 
+    if (result.state === "paused") {
+      stopPolling();
+      stopTyping();
+      useGenerationStore.setState({
+        isPaused: true,
+        thinking: result.thinking || "已暂停",
+        skipVisible: false,
+      });
+      return;
+    }
+
     const thinking = String(result.thinking || "AI 正在构思...");
     const partial = stripPauseMarkerPrefix(String(result.partial_content || ""));
 
@@ -409,9 +425,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   recoveryInfo: null,
 
   start: async (config) => {
-    if (actionDebounced("start-generation", 240)) return;
     if (get().isWriting) {
-      await get().stop();
+      void get().stop();
       return;
     }
 
@@ -477,12 +492,13 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   stop: async () => {
-    if (actionDebounced("stop-generation", 240)) return;
     const { taskId } = get();
     if (pendingStartToken && !taskId) {
       pendingStartToken.cancelled = true;
     }
-    if (!taskId && !get().isWriting) return;
+    if (!taskId && !get().isWriting) {
+      return;
+    }
 
     stopPolling();
     resetStreamingState();
@@ -490,6 +506,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       isWriting: false,
       isPaused: false,
       stage: "stopped",
+      stageDurations: defaultDurations(),
+      stageSince: 0,
       taskId: "",
       thinking: "已停止",
       generatedText: "(写作已停止)",
@@ -498,22 +516,22 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     });
 
     if (taskId) {
-      try {
-        const payload = await stopGenerate(taskId);
-        if (payload.request_id) {
-          set({ requestId: payload.request_id });
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "停止请求发送失败";
-        useUiStore.getState().addToast(`停止请求发送失败: ${message}`, "warning");
-      }
+      void stopGenerate(taskId)
+        .then((payload) => {
+          if (payload.request_id) {
+            set({ requestId: payload.request_id });
+          }
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : "停止请求发送失败";
+          useUiStore.getState().addToast(`停止请求发送失败: ${message}`, "warning");
+        });
     }
 
     useUiStore.getState().addToast(`写作已停止${requestTag()}`, "warning");
   },
 
   togglePause: async () => {
-    if (actionDebounced("pause-generation", 200)) return;
     const state = get();
     if (!state.taskId) {
       useUiStore.getState().addToast("当前没有可暂停的写作任务", "warning");
@@ -523,26 +541,33 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     if (!state.isPaused) {
       stopPolling();
       stopTyping();
-      set({ isPaused: true, stage: "paused", thinking: "已暂停", skipVisible: false });
+      set({ isPaused: true, thinking: "已暂停", skipVisible: false });
       const snapshot = stripPauseMarkerPrefix(String(streamTarget || state.generatedText || "")).trim();
       if (snapshot) {
-        try {
-          await savePauseSnapshot({
-            task_id: state.taskId,
-            request_id: state.requestId,
-            content: snapshot,
-          });
-        } catch {
+        void savePauseSnapshot({
+          task_id: state.taskId,
+          request_id: state.requestId,
+          content: snapshot,
+        }).catch(() => {
           // ignore snapshot save errors
-        }
+        });
       }
+      void pauseGenerate(state.taskId, true).catch(() => {
+        // ignore pause sync failure
+      });
       useUiStore.getState().addToast("写作已暂停", "info");
       return;
     }
 
-    set({ isPaused: false, stage: "generating", thinking: "AI 正在创作..." });
+    if (!["queued", "generating", "finishing"].includes(String(state.stage || ""))) {
+      setStage("generating");
+    }
+    set({ isPaused: false, thinking: "AI 正在创作..." });
+    void pauseGenerate(state.taskId, false).catch(() => {
+      // ignore resume sync failure
+    });
     useUiStore.getState().addToast("继续写作", "info");
-    await poll(state.taskId);
+    void poll(state.taskId);
   },
 
   setAutoScroll: (enabled) => set({ autoScroll: enabled }),

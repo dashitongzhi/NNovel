@@ -18,23 +18,29 @@ This project is an independent React + TypeScript + Vite migration workspace for
 
 ## Run
 
-1. Start backend from `E:\Project\NNovel` (Flask/Electron as usual).
-2. In this directory:
+In this directory:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Default URL: `http://localhost:5173`
+`npm run dev` starts:
+- Flask backend (`../../NNovel/app.py`, runtime root forced to this folder)
+- Vite web (`127.0.0.1:5174`)
+- Electron window
+
+Default web URL: `http://127.0.0.1:5174`
 
 ## Environment
 
-Copy `.env.example` to `.env` and adjust if needed:
+Copy `.env.example` to `.env` only if needed:
 
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:5000
+VITE_API_BASE_URL=
 ```
+
+Dev mode uses Vite proxy (`/api -> http://127.0.0.1:5050`) and avoids CORS issues.
 
 ## Scripts
 
@@ -67,4 +73,6 @@ VITE_API_BASE_URL=http://127.0.0.1:5000
 ## Notes
 
 - This migration project does not modify any file under `E:\Project\NNovel`.
+- Runtime storage root is this folder (`E:\Project\UI\react_test`) when started by `npm run dev`.
+- Generated data is written under `E:\Project\UI\react_test\data\...` (bookshelf/books/project/cache/chapters/novel output).
 - Mobile (React Native) abstraction prep exists in shared types (`ProviderConfig`, `StoragePort`).

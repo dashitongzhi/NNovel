@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Toolbar } from "@/components/layout/Toolbar";
 import { DraftPanel } from "@/components/layout/DraftPanel";
@@ -7,6 +7,7 @@ import { DiscardedPanel } from "@/components/layout/DiscardedPanel";
 import { ModalHost } from "@/components/modals/ModalHost";
 import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
+import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
 import { useGenerationStore } from "@/stores/generationStore";
@@ -29,17 +30,32 @@ import {
   saveSettingsFile,
 } from "@/services/endpoints/settingsFiles";
 import { getSelfCheck, getStatus, prewarmEngine, saveProxyPort, testConnectivity } from "@/services/endpoints/runtime";
-import type { BookshelfPayload, ConsistencyConflict, ModelHealthRow, StartupStatus } from "@/types/domain";
+import type { AppConfig, BookshelfPayload, ConsistencyConflict, ModelHealthRow, StartupStatus } from "@/types/domain";
 
-function statusText(stage: string, thinking: string): string {
-  if (stage === "queued") return "排队中";
-  if (stage === "generating") return thinking || "AI 正在创作...";
-  if (stage === "finishing") return "收尾中";
-  if (stage === "completed") return "生成完成";
+function statusText(stage: string, isPaused: boolean, isWriting: boolean): string {
+  if (isPaused) return "已暂停";
+  if (isWriting || stage === "queued" || stage === "generating" || stage === "finishing") return "已加载提要...";
+  if (stage === "completed") return "AI创作完成";
   if (stage === "paused") return "已暂停";
   if (stage === "error") return "状态异常";
   if (stage === "stopped") return "已停止";
-  return thinking || "就绪";
+  return "就绪";
+}
+
+function modeLabel(mode: AppConfig["engine_mode"]): string {
+  if (mode === "personal") return "个人配置";
+  if (mode === "doubao") return "Doubao";
+  if (mode === "claude") return "Claude";
+  if (mode === "gemini") return "Gemini";
+  return "ChatGPT";
+}
+
+function modelForMode(config: AppConfig, mode: AppConfig["engine_mode"]): string {
+  if (mode === "gemini") return String(config.gemini_model || "");
+  if (mode === "claude") return String(config.claude_model || "");
+  if (mode === "doubao") return String(config.doubao_model || "");
+  if (mode === "personal") return String(config.personal_model || "");
+  return String(config.codex_model || "");
 }
 
 const CACHE_BOX_ENABLED_KEY = "writer:cacheBoxEnabled";
@@ -67,6 +83,21 @@ interface SelfCheckRowView {
   ok: boolean;
   detail: string;
   required: boolean;
+}
+
+type ModelListPrefix = "personal" | "doubao";
+
+interface ModelContextMenuState {
+  open: boolean;
+  left: number;
+  top: number;
+  showPinTop: boolean;
+}
+
+interface InfoContextMenuState {
+  open: boolean;
+  left: number;
+  top: number;
 }
 
 const OUTLINE_REQUIRED_FIELDS: Array<keyof OutlineFormState> = [
@@ -150,6 +181,87 @@ function normalizeModelList(value: string, fallback = ""): string[] {
   return list;
 }
 
+function seedModelEditorRows(value: string, fallback: string): string[] {
+  const rows = normalizeModelList(value, fallback);
+  return rows.length ? rows : [fallback];
+}
+
+function resolveEditableTarget(target: EventTarget | null): HTMLInputElement | HTMLTextAreaElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  const el = target.closest("input, textarea");
+  if (!el) return null;
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return el;
+  return null;
+}
+
+function canPasteToTarget(target: HTMLInputElement | HTMLTextAreaElement | null): boolean {
+  if (!target) return false;
+  return !target.readOnly && !target.disabled;
+}
+
+function getEditableSelectionText(target: HTMLInputElement | HTMLTextAreaElement | null): string {
+  if (!target) return "";
+  const start = Number.isFinite(target.selectionStart) ? Number(target.selectionStart) : 0;
+  const end = Number.isFinite(target.selectionEnd) ? Number(target.selectionEnd) : 0;
+  if (end <= start) return "";
+  return target.value.slice(start, end);
+}
+
+async function copyText(text: string): Promise<boolean> {
+  const value = String(text || "");
+  if (!value) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // fallback below
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+async function readClipboardText(): Promise<string> {
+  try {
+    if (navigator.clipboard?.readText) {
+      const text = await navigator.clipboard.readText();
+      return String(text || "");
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+function formatInfoTime(ts: number): string {
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return "--:--:--";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function clampMenuPosition(clientX: number, clientY: number, width: number, height: number): { left: number; top: number } {
+  const margin = 8;
+  const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+  const maxTop = Math.max(margin, window.innerHeight - height - margin);
+  return {
+    left: Math.min(Math.max(margin, clientX), maxLeft),
+    top: Math.min(Math.max(margin, clientY), maxTop),
+  };
+}
+
 function App() {
   const configStore = useConfigStore();
   const draftStore = useDraftStore();
@@ -159,7 +271,9 @@ function App() {
 
   const [chapterTitleOpen, setChapterTitleOpen] = useState(false);
   const [chapterTitle, setChapterTitle] = useState("");
+  const [chapterTitleGenerating, setChapterTitleGenerating] = useState(false);
   const [chapterSaving, setChapterSaving] = useState(false);
+  const [draftPolishing, setDraftPolishing] = useState(false);
 
   const [consistencyOpen, setConsistencyOpen] = useState(false);
   const [consistencySummary, setConsistencySummary] = useState("");
@@ -198,7 +312,9 @@ function App() {
 
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
+  const [outlinePaused, setOutlinePaused] = useState(false);
   const [outlineForm, setOutlineForm] = useState<OutlineFormState>(EMPTY_OUTLINE_FORM);
+  const outlineAbortRef = useRef<AbortController | null>(null);
 
   const [modelHealthOpen, setModelHealthOpen] = useState(false);
   const [modelHealthRows, setModelHealthRows] = useState<ModelHealthRow[]>([]);
@@ -216,6 +332,16 @@ function App() {
   const [stageTimelineEnabled, setStageTimelineEnabled] = useState(() => readBoolSetting(STAGE_TIMELINE_ENABLED_KEY, true));
 
   const [tick, setTick] = useState(Date.now());
+  const [doubaoModelEditorRows, setDoubaoModelEditorRows] = useState<string[]>(["doubao-seed-1-6-251015"]);
+  const [personalModelEditorRows, setPersonalModelEditorRows] = useState<string[]>(["deepseek-ai/deepseek-v3.2"]);
+  const [modelContextMenu, setModelContextMenu] = useState<ModelContextMenuState>({ open: false, left: 0, top: 0, showPinTop: false });
+  const [modelMenuCanCopy, setModelMenuCanCopy] = useState(false);
+  const [modelMenuCanPaste, setModelMenuCanPaste] = useState(false);
+  const [modelMenuCanCut, setModelMenuCanCut] = useState(false);
+  const [infoContextMenu, setInfoContextMenu] = useState<InfoContextMenuState>({ open: false, left: 0, top: 0 });
+  const modelContextTargetRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const modelContextRowRef = useRef<{ prefix: ModelListPrefix; index: number } | null>(null);
+  const infoContextItemIdRef = useRef<number | null>(null);
 
   const refreshRuntimeStatus = async (silent = false): Promise<void> => {
     try {
@@ -252,8 +378,6 @@ function App() {
           if (status.codex_api_ready === false) {
             ui.addToast("ChatGPT API 模式未配置密钥，请填写 API Key 或设置 OPENAI_API_KEY", "error");
           }
-        } else if (status.codex_available === false) {
-          ui.addToast("未检测到 ChatGPT(codex) 可执行文件，请确保 codex 已安装并在 PATH 中", "error");
         }
       }
       const runtimeErr = String(status.runtime_last_error || "").trim();
@@ -379,6 +503,87 @@ function App() {
     }
   }, [configStore.config.first_run_required]);
 
+  useEffect(() => {
+    if (!outlineOpen) return;
+    window.setTimeout(() => {
+      const first = document.getElementById("outline-overall-flow") as HTMLTextAreaElement | null;
+      first?.focus();
+    }, 0);
+  }, [outlineOpen]);
+
+  useEffect(() => {
+    if (!infoBoxOpen) {
+      closeInfoContextMenu();
+    }
+  }, [infoBoxOpen]);
+
+  useEffect(() => {
+    if (!personalConfigOpen && !doubaoSettingsOpen) {
+      closeModelContextMenu();
+    }
+  }, [personalConfigOpen, doubaoSettingsOpen]);
+
+  useEffect(() => {
+    const onDocContextMenu = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("#engine-picker-menu")) return;
+      if (target.closest("#info-box-modal")) return;
+      const row = target.closest(".personal-model-row, .doubao-model-row") as HTMLElement | null;
+      const editable = resolveEditableTarget(target);
+      if (!row && !editable) return;
+      event.preventDefault();
+      let rowContext: { prefix: ModelListPrefix; index: number } | null = null;
+      if (row) {
+        const rawIndex = Number.parseInt(String(row.getAttribute("data-model-index") || ""), 10);
+        const prefix = row.classList.contains("doubao-model-row") ? "doubao" : "personal";
+        rowContext = {
+          prefix,
+          index: Number.isFinite(rawIndex) ? rawIndex : 0,
+        };
+      }
+      openModelContextMenuAt(event.clientX, event.clientY, editable, rowContext);
+    };
+
+    const onDocClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const inModelMenu = Boolean(target?.closest?.("#personal-model-context-menu"));
+      const inInfoMenu = Boolean(target?.closest?.("#info-box-context-menu"));
+      if (!inModelMenu) closeModelContextMenu();
+      if (!inInfoMenu) closeInfoContextMenu();
+    };
+
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      closeModelContextMenu();
+      closeInfoContextMenu();
+    };
+
+    const onResize = () => {
+      closeModelContextMenu();
+      closeInfoContextMenu();
+    };
+
+    const onSelection = () => {
+      if (!modelContextMenu.open) return;
+      updateModelContextMenuActionState();
+    };
+
+    document.addEventListener("contextmenu", onDocContextMenu);
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    document.addEventListener("selectionchange", onSelection);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("contextmenu", onDocContextMenu);
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+      document.removeEventListener("selectionchange", onSelection);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [modelContextMenu.open]);
+
   const stageDurations = useMemo(() => {
     const next = { ...generation.stageDurations };
     if (
@@ -390,13 +595,36 @@ function App() {
     return next;
   }, [generation.stageDurations, generation.stage, generation.stageSince, tick]);
 
-  const personalModelRows = useMemo(
-    () => normalizeModelList(configStore.config.personal_models, "deepseek-ai/deepseek-v3.2"),
-    [configStore.config.personal_models],
+  const personalModalModelRows = useMemo(
+    () => normalizeModelList(personalModelEditorRows.join("\n"), "deepseek-ai/deepseek-v3.2"),
+    [personalModelEditorRows],
   );
-  const doubaoModelRows = useMemo(
-    () => normalizeModelList(configStore.config.doubao_models, "doubao-seed-1-6-251015"),
-    [configStore.config.doubao_models],
+  const doubaoModalModelRows = useMemo(
+    () => normalizeModelList(doubaoModelEditorRows.join("\n"), "doubao-seed-1-6-251015"),
+    [doubaoModelEditorRows],
+  );
+  const hasPersonalModel = useMemo(() => {
+    const list = normalizeModelList(
+      configStore.config.personal_models || configStore.config.personal_model || "",
+      "deepseek-ai/deepseek-v3.2",
+    );
+    return list.length > 0;
+  }, [configStore.config.personal_models, configStore.config.personal_model]);
+  const personalSaveDisabled = useMemo(() => {
+    const hasModel = personalModalModelRows.some((item) => String(item || "").trim());
+    return !(
+      hasModel
+      && String(configStore.config.personal_base_url || "").trim()
+      && String(configStore.config.personal_api_key || "").trim()
+    );
+  }, [personalModalModelRows, configStore.config.personal_base_url, configStore.config.personal_api_key]);
+  const doubaoSaveDisabled = useMemo(
+    () => !doubaoModalModelRows.some((item) => String(item || "").trim()),
+    [doubaoModalModelRows],
+  );
+  const outlineFormValid = useMemo(
+    () => OUTLINE_REQUIRED_FIELDS.every((key) => Boolean(String(outlineForm[key] || "").trim())),
+    [outlineForm],
   );
 
   const toolbarStatusOverride = useMemo<"" | "就绪" | "异常" | "成功">(() => {
@@ -407,9 +635,16 @@ function App() {
   }, [generation.stage, generation.generatedText]);
 
   const personalConfigReady = useMemo(() => {
-    if (runtimeStatus) return runtimeStatus.personal_ready !== false;
-    return Boolean(String(configStore.config.personal_base_url || "").trim() && String(configStore.config.personal_api_key || "").trim());
-  }, [runtimeStatus, configStore.config.personal_base_url, configStore.config.personal_api_key]);
+    const localReady = Boolean(
+      String(configStore.config.personal_base_url || "").trim()
+      && String(configStore.config.personal_api_key || "").trim()
+      && hasPersonalModel,
+    );
+    if (!runtimeStatus) return localReady;
+    if (runtimeStatus.personal_ready === false) return false;
+    if (runtimeStatus.personal_ready === true) return true;
+    return localReady;
+  }, [runtimeStatus, configStore.config.personal_base_url, configStore.config.personal_api_key, hasPersonalModel]);
 
   const handleStartStop = async (): Promise<void> => {
     if (generation.isWriting) {
@@ -442,6 +677,31 @@ function App() {
       // ignore proxy sync failure here
     }
     await refreshRuntimeStatus(true);
+  };
+
+  const switchEngineMode = async (mode: AppConfig["engine_mode"]): Promise<void> => {
+    if (generation.isWriting) {
+      ui.addToast("写作进行中，停止后才能切换模型", "warning");
+      return;
+    }
+
+    const nextConfig: AppConfig = {
+      ...configStore.config,
+      engine_mode: mode,
+    };
+    configStore.patch({ engine_mode: mode });
+    setRuntimeStatus((prev) => {
+      const base = (prev || {}) as StartupStatus;
+      return {
+        ...base,
+        engine_mode: mode,
+        runtime_last_engine: mode,
+        runtime_last_model: modelForMode(nextConfig, mode),
+      };
+    });
+
+    await handleSaveConfig();
+    ui.addToast(`已切换模型：${modeLabel(mode)}`, "success");
   };
 
   const handleImportFile = async (target: "outline" | "reference", file: File): Promise<void> => {
@@ -477,6 +737,19 @@ function App() {
     });
   };
 
+  const closeBookshelfModal = (): void => {
+    if (configStore.config.first_run_required) return;
+    setBookshelfOpen(false);
+  };
+
+  const bookshelfTip = useMemo(() => {
+    const rootDir = String(bookshelf.active_paths?.root_dir || "").trim();
+    if (rootDir) {
+      return `当前书籍目录：${rootDir}。本书的大纲、参考、缓存、章节、草稿都会单独保存在这里。`;
+    }
+    return "每本书会在独立文件夹中保存：大纲、参考、缓存、章节、草稿都会单独隔离。";
+  }, [bookshelf.active_paths]);
+
   const createBookQuick = async (): Promise<void> => {
     setBookshelfOpen(true);
     await reloadBookshelf();
@@ -503,11 +776,15 @@ function App() {
   };
 
   const handleSplitChapter = async (): Promise<void> => {
+    if (chapterSaving || chapterTitleGenerating) {
+      return;
+    }
     const content = draftStore.content;
     if (!content || content.trim().length < 10) {
       ui.addToast("草稿内容太少，无法分章", "error");
       return;
     }
+    setChapterTitleGenerating(true);
     try {
       const payload = await generateChapterTitle(content);
       setChapterTitle(payload.title || "新章节");
@@ -515,7 +792,25 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成标题失败";
       ui.addToast(`生成标题失败: ${message}`, "error");
+    } finally {
+      setChapterTitleGenerating(false);
     }
+  };
+
+  const handlePolishDraft = async (): Promise<void> => {
+    if (draftPolishing || chapterSaving || chapterTitleGenerating) {
+      return;
+    }
+    const content = String(draftStore.content || "").trim();
+    if (!content) {
+      ui.addToast("草稿为空，无法润色", "warning");
+      return;
+    }
+    setDraftPolishing(true);
+    window.setTimeout(() => {
+      setDraftPolishing(false);
+      ui.addToast("润色按钮已添加，后续可接入专用润色链路", "info");
+    }, 380);
   };
 
   const handleConfirmChapterSave = async (): Promise<void> => {
@@ -523,6 +818,7 @@ function App() {
       ui.addToast("标题不能为空", "error");
       return;
     }
+    setChapterTitleOpen(false);
     setChapterSaving(true);
     try {
       const oldMemory = configStore.config.global_memory;
@@ -556,7 +852,6 @@ function App() {
 
       draftStore.setContent("");
       await draftStore.saveNow();
-      setChapterTitleOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "保存章节失败";
       ui.addToast(`保存章节失败: ${message}`, "error");
@@ -584,13 +879,37 @@ function App() {
   };
 
   const saveDoubaoConfigFromModal = async (): Promise<void> => {
+    const normalized = normalizeModelList(doubaoModelEditorRows.join("\n"), "doubao-seed-1-6-251015");
+    if (!normalized.length) {
+      ui.addToast("请至少配置一个模型 ID", "error");
+      return;
+    }
+    updateDoubaoModels(normalized, configStore.config.doubao_model || "");
     await handleSaveConfig();
     setDoubaoSettingsOpen(false);
   };
 
   const savePersonalConfigFromModal = async (): Promise<void> => {
+    const normalized = normalizeModelList(personalModelEditorRows.join("\n"), "deepseek-ai/deepseek-v3.2");
+    const baseUrl = String(configStore.config.personal_base_url || "").trim();
+    const apiKey = String(configStore.config.personal_api_key || "").trim();
+    if (!normalized.length || !baseUrl || !apiKey) {
+      ui.addToast("请填写模型 ID、base url 与 api key", "error");
+      return;
+    }
+    updatePersonalModels(normalized, configStore.config.personal_model || "");
     await handleSaveConfig();
     setPersonalConfigOpen(false);
+  };
+
+  const openDoubaoConfigModal = (): void => {
+    setDoubaoModelEditorRows(seedModelEditorRows(configStore.config.doubao_models, "doubao-seed-1-6-251015"));
+    setDoubaoSettingsOpen(true);
+  };
+
+  const openPersonalConfigModal = (): void => {
+    setPersonalModelEditorRows(seedModelEditorRows(configStore.config.personal_models, "deepseek-ai/deepseek-v3.2"));
+    setPersonalConfigOpen(true);
   };
 
   const openSettingsEditorModal = async (): Promise<void> => {
@@ -757,26 +1076,191 @@ function App() {
     }
   };
 
+  const updateModelContextMenuActionState = (): void => {
+    const target = modelContextTargetRef.current;
+    const editableSelection = getEditableSelectionText(target).trim();
+    const selected = window.getSelection?.();
+    const selectedText = String(selected ? selected.toString() : "").trim();
+    setModelMenuCanCopy(Boolean(editableSelection || selectedText));
+    setModelMenuCanCut(Boolean(target && !target.readOnly && !target.disabled));
+    setModelMenuCanPaste(canPasteToTarget(target));
+  };
+
+  const closeModelContextMenu = (): void => {
+    setModelContextMenu((prev) => ({ ...prev, open: false }));
+    modelContextTargetRef.current = null;
+    modelContextRowRef.current = null;
+  };
+
+  const closeInfoContextMenu = (): void => {
+    setInfoContextMenu((prev) => ({ ...prev, open: false }));
+    infoContextItemIdRef.current = null;
+  };
+
+  const openModelContextMenuAt = (
+    clientX: number,
+    clientY: number,
+    target: HTMLInputElement | HTMLTextAreaElement | null,
+    rowContext: { prefix: ModelListPrefix; index: number } | null,
+  ): void => {
+    const pos = clampMenuPosition(clientX, clientY, 170, rowContext ? 174 : 138);
+    modelContextTargetRef.current = target;
+    modelContextRowRef.current = rowContext;
+    updateModelContextMenuActionState();
+    setModelContextMenu({
+      open: true,
+      left: pos.left,
+      top: pos.top,
+      showPinTop: Boolean(rowContext),
+    });
+    closeInfoContextMenu();
+  };
+
+  const openInfoContextMenuAt = (clientX: number, clientY: number, itemId: number): void => {
+    const pos = clampMenuPosition(clientX, clientY, 150, 60);
+    infoContextItemIdRef.current = itemId;
+    setInfoContextMenu({ open: true, left: pos.left, top: pos.top });
+    closeModelContextMenu();
+  };
+
+  const closeOutlineModal = (abortRunning = true): void => {
+    const controller = outlineAbortRef.current;
+    if (abortRunning && controller) {
+      controller.abort();
+      ui.addToast("已取消生成", "info");
+    }
+    outlineAbortRef.current = null;
+    setOutlineGenerating(false);
+    setOutlinePaused(false);
+    setOutlineOpen(false);
+  };
+
+  const toggleOutlinePause = (): void => {
+    if (!outlineAbortRef.current) return;
+    setOutlinePaused((prev) => !prev);
+  };
+
   const generateOutlineFromModal = async (): Promise<void> => {
-    const missing = OUTLINE_REQUIRED_FIELDS.find((x) => !String(outlineForm[x] || "").trim());
-    if (missing) {
-      ui.addToast("请先填写大纲必填字段", "error");
+    if (outlineAbortRef.current) {
+      toggleOutlinePause();
       return;
     }
+    if (!outlineFormValid) {
+      ui.addToast("请先填写所有必填项", "error");
+      return;
+    }
+
+    const controller = new AbortController();
+    outlineAbortRef.current = controller;
+    setOutlinePaused(false);
     setOutlineGenerating(true);
+
     try {
       const prompt = buildOutlineSeed(outlineForm);
-      const payload = await generateOutline({ ...configStore.config, outline: prompt });
+      const payload = await generateOutline({ ...configStore.config, outline: prompt }, controller.signal);
       const nextOutline = String(payload.outline || "").trim();
       configStore.patch({ outline: nextOutline || prompt });
-      setOutlineOpen(false);
       ui.addToast("大纲生成完成", "success");
+      closeOutlineModal(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "生成大纲失败";
-      ui.addToast(`生成大纲失败: ${message}`, "error");
+      const aborted = controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
+      if (!aborted) {
+        const message = error instanceof Error ? error.message : "生成大纲失败";
+        ui.addToast(`生成大纲失败: ${message}`, "error");
+      }
     } finally {
-      setOutlineGenerating(false);
+      if (outlineAbortRef.current === controller) {
+        outlineAbortRef.current = null;
+        setOutlineGenerating(false);
+        setOutlinePaused(false);
+      }
     }
+  };
+
+  const handleModelContextCopy = async (): Promise<void> => {
+    const selected = window.getSelection?.();
+    const text = getEditableSelectionText(modelContextTargetRef.current) || String(selected ? selected.toString() : "");
+    if (!String(text || "").trim()) {
+      ui.addToast("没有可复制内容", "error");
+      return;
+    }
+    const ok = await copyText(text);
+    ui.addToast(ok ? "已复制" : "复制失败", ok ? "success" : "error");
+  };
+
+  const handleModelContextCut = async (): Promise<void> => {
+    const target = modelContextTargetRef.current;
+    if (!target || target.readOnly || target.disabled) {
+      ui.addToast("当前区域不支持剪切", "error");
+      return;
+    }
+    const start = Number.isFinite(target.selectionStart) ? Number(target.selectionStart) : 0;
+    const end = Number.isFinite(target.selectionEnd) ? Number(target.selectionEnd) : 0;
+    if (end <= start) {
+      ui.addToast("请选择要剪切的内容", "error");
+      return;
+    }
+    const text = target.value.slice(start, end);
+    const ok = await copyText(text);
+    if (!ok) {
+      ui.addToast("剪切失败", "error");
+      return;
+    }
+    target.setRangeText("", start, end, "start");
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    ui.addToast("已剪切", "success");
+  };
+
+  const handleModelContextPaste = async (): Promise<void> => {
+    const target = modelContextTargetRef.current;
+    if (!target || !canPasteToTarget(target)) {
+      ui.addToast("当前区域不支持粘贴", "error");
+      return;
+    }
+    const text = await readClipboardText();
+    if (!text) {
+      ui.addToast("剪贴板为空或无权限", "error");
+      return;
+    }
+    const start = Number.isFinite(target.selectionStart) ? Number(target.selectionStart) : target.value.length;
+    const end = Number.isFinite(target.selectionEnd) ? Number(target.selectionEnd) : target.value.length;
+    target.setRangeText(text, start, end, "end");
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    ui.addToast("已粘贴", "success");
+  };
+
+  const handleModelContextPinTop = (): void => {
+    const row = modelContextRowRef.current;
+    if (!row || row.index <= 0) return;
+    if (row.prefix === "doubao") {
+      setDoubaoModelEditorRows((prev) => {
+        if (row.index >= prev.length) return prev;
+        const next = [...prev];
+        const [picked] = next.splice(row.index, 1);
+        next.unshift(picked);
+        return next;
+      });
+    } else {
+      setPersonalModelEditorRows((prev) => {
+        if (row.index >= prev.length) return prev;
+        const next = [...prev];
+        const [picked] = next.splice(row.index, 1);
+        next.unshift(picked);
+        return next;
+      });
+    }
+    ui.addToast("已设为置顶模型（默认）", "success");
+  };
+
+  const copyInfoBoxItemById = async (id: number): Promise<void> => {
+    const item = ui.infoItems.find((x) => x.id === id);
+    const text = String(item?.message || "");
+    if (!text.trim()) {
+      ui.addToast("没有可复制内容", "error");
+      return;
+    }
+    const ok = await copyText(text);
+    ui.addToast(ok ? "已复制" : "复制失败", ok ? "success" : "error");
   };
 
   const runSelfCheck = async (auto = false): Promise<void> => {
@@ -841,10 +1325,7 @@ function App() {
           onPatch={configStore.patch}
           onSave={() => void handleSaveConfig()}
           onStartStop={() => void handleStartStop()}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onOpenPersonalConfig={() => {
-            setPersonalConfigOpen(true);
-          }}
+          onOpenPersonalConfig={openPersonalConfigModal}
           onImportFile={(target, file) => void handleImportFile(target, file)}
         />
 
@@ -852,6 +1333,7 @@ function App() {
           <Toolbar
             sidebarCollapsed={ui.sidebarCollapsed}
             discardedVisible={discarded.visible}
+            interactionsLocked={generation.isWriting}
             config={configStore.config}
             status={runtimeStatus}
             statusOverride={toolbarStatusOverride}
@@ -872,12 +1354,7 @@ function App() {
             onOpenSelfCheck={() => void runSelfCheck()}
             onCreateBookQuick={() => void createBookQuick()}
             onSwitchEngine={(mode) => {
-              configStore.patch({ engine_mode: mode });
-              void refreshRuntimeStatus(true);
-              ui.addToast(`已切换模型：${mode === "personal" ? "个人配置" : mode === "doubao" ? "Doubao" : mode === "claude" ? "Claude" : mode === "gemini" ? "Gemini" : "ChatGPT"}`, "success");
-              if (mode === "personal") {
-                setPersonalConfigOpen(true);
-              }
+              void switchEngineMode(mode);
             }}
           />
 
@@ -891,10 +1368,13 @@ function App() {
           <section id="writing-desk">
             <DraftPanel
               content={draftStore.content}
-              loading={chapterSaving}
+              splitLoading={chapterTitleGenerating}
+              saveLoading={chapterSaving}
+              polishLoading={draftPolishing}
               cacheEnabled={cacheEnabled}
               cacheExpanded={cacheEnabled && cacheExpanded}
               onChange={draftStore.setContent}
+              onPolish={() => void handlePolishDraft()}
               onSplitChapter={() => void handleSplitChapter()}
               onToggleCache={() => {
                 if (!cacheEnabled) return;
@@ -903,16 +1383,26 @@ function App() {
             />
 
             <GenerationPanel
+              statusState={generation.isPaused ? "paused" : generation.stage}
               stage={generation.stage}
               stageDurations={stageDurations}
-              statusText={statusText(generation.stage, generation.thinking)}
+              statusText={statusText(generation.stage, generation.isPaused, generation.isWriting)}
               thinkingText={generation.thinking}
               generatedText={generation.generatedText}
               referenceStatus={generation.referenceStatus}
               stageTimelineEnabled={stageTimelineEnabled}
               isWriting={generation.isWriting}
+              hasTask={Boolean(generation.taskId)}
               isPaused={generation.isPaused}
               skipVisible={generation.skipVisible}
+              showTypeCursor={
+                generation.typewriterEnabled
+                && generation.isWriting
+                && !generation.isPaused
+                && generation.stage !== "completed"
+                && generation.stage !== "error"
+                && generation.stage !== "stopped"
+              }
               autoScroll={generation.autoScroll}
               onStartStop={() => void handleStartStop()}
               onPauseResume={() => void generation.togglePause()}
@@ -1017,7 +1507,7 @@ function App() {
 
             <div className="settings-section">
               <h4>模型配置</h4>
-              <button id="doubao-config-btn" className="settings-entry-btn" type="button" onClick={() => setDoubaoSettingsOpen(true)}>
+              <button id="doubao-config-btn" className="settings-entry-btn" type="button" onClick={openDoubaoConfigModal}>
                 <span>豆包</span>
                 <span className="settings-entry-arrow">›</span>
               </button>
@@ -1178,26 +1668,18 @@ function App() {
                 <label className="settings-label">当前模型</label>
                 <div className="settings-control">
                   <ConfigSelect
-                    value={configStore.config.doubao_model || doubaoModelRows[0] || ""}
+                    value={configStore.config.doubao_model || doubaoModalModelRows[0] || ""}
                     onChange={(value) => configStore.patch({ doubao_model: value })}
-                    options={doubaoModelRows.map((x) => ({ value: x, label: x }))}
+                    options={doubaoModalModelRows.map((x) => ({ value: x, label: x }))}
                   />
                 </div>
               </div>
-              <div className="settings-row">
-                <label className="settings-label">模型ID列表</label>
-                <div className="settings-control">
-                  <textarea
-                    className="outline-input"
-                    style={{ minHeight: 180 }}
-                    value={configStore.config.doubao_models}
-                    onChange={(e) => {
-                      const models = normalizeModelList(e.target.value, "doubao-seed-1-6-251015");
-                      updateDoubaoModels(models, configStore.config.doubao_model || "");
-                    }}
-                  />
-                </div>
-              </div>
+              <ModelIdListEditor
+                idPrefix="doubao"
+                rows={doubaoModelEditorRows}
+                onRowsChange={setDoubaoModelEditorRows}
+                hint="支持增减模型 ID。首位模型为默认使用模型，失败时按从上到下自动切换。"
+              />
               <div className="settings-row">
                 <label className="settings-label">思考等级</label>
                 <div className="settings-control">
@@ -1212,11 +1694,10 @@ function App() {
                   />
                 </div>
               </div>
-              <p className="settings-desc">支持增减模型 ID。首位模型为默认使用模型，失败时按从上到下自动切换。</p>
             </div>
           </div>
           <div className="modal-actions">
-            <button className="btn btn-primary" type="button" onClick={() => void saveDoubaoConfigFromModal()}>保存并应用</button>
+            <button className="btn btn-primary" type="button" onClick={() => void saveDoubaoConfigFromModal()} disabled={doubaoSaveDisabled}>保存并应用</button>
             <button className="btn btn-danger" type="button" onClick={() => setDoubaoSettingsOpen(false)}>取消</button>
           </div>
         </div>
@@ -1236,26 +1717,18 @@ function App() {
                 <label className="settings-label">当前模型</label>
                 <div className="settings-control">
                   <ConfigSelect
-                    value={configStore.config.personal_model || personalModelRows[0] || ""}
+                    value={configStore.config.personal_model || personalModalModelRows[0] || ""}
                     onChange={(value) => configStore.patch({ personal_model: value })}
-                    options={personalModelRows.map((x) => ({ value: x, label: x }))}
+                    options={personalModalModelRows.map((x) => ({ value: x, label: x }))}
                   />
                 </div>
               </div>
-              <div className="settings-row">
-                <label className="settings-label">模型ID列表</label>
-                <div className="settings-control">
-                  <textarea
-                    className="outline-input"
-                    style={{ minHeight: 180 }}
-                    value={configStore.config.personal_models}
-                    onChange={(e) => {
-                      const models = normalizeModelList(e.target.value, "deepseek-ai/deepseek-v3.2");
-                      updatePersonalModels(models, configStore.config.personal_model || "");
-                    }}
-                  />
-                </div>
-              </div>
+              <ModelIdListEditor
+                idPrefix="personal"
+                rows={personalModelEditorRows}
+                onRowsChange={setPersonalModelEditorRows}
+                hint="支持增减模型 ID。首位模型为默认使用模型，失败时按从上到下自动切换。"
+              />
               <div className="settings-row">
                 <label className="settings-label">Base URL</label>
                 <div className="settings-control">
@@ -1272,7 +1745,7 @@ function App() {
             </div>
           </div>
           <div className="modal-actions">
-            <button className="btn btn-primary" type="button" onClick={() => void savePersonalConfigFromModal()}>保存并应用</button>
+            <button id="personal-config-save-btn" className="btn btn-primary" type="button" onClick={() => void savePersonalConfigFromModal()} disabled={personalSaveDisabled}>保存并应用</button>
             <button className="btn btn-danger" type="button" onClick={() => setPersonalConfigOpen(false)}>取消</button>
           </div>
         </div>
@@ -1317,14 +1790,21 @@ function App() {
       </div>
 
       <div id="bookshelf-modal" className={`modal-overlay ${bookshelfOpen ? "" : "hidden"}`} onClick={(e) => {
-        if (e.target === e.currentTarget && !configStore.config.first_run_required) setBookshelfOpen(false);
+        if (e.target === e.currentTarget) closeBookshelfModal();
       }}>
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>书架</h3>
-            <button className="icon-btn" type="button" onClick={() => setBookshelfOpen(false)} disabled={Boolean(configStore.config.first_run_required)}>×</button>
+            <button
+              className={`icon-btn settings-modal-header-icon-btn ${configStore.config.first_run_required ? "hidden" : ""}`}
+              type="button"
+              onClick={closeBookshelfModal}
+              aria-label="关闭书架弹窗"
+            >
+              ×
+            </button>
           </div>
-          <p className="consistency-summary">每本书会在独立文件夹中保存，大纲、草稿、章节互相隔离。</p>
+          <p id="bookshelf-tip" className="consistency-summary">{bookshelfTip}</p>
           <div className="settings-row" style={{ marginBottom: 10 }}>
             <label className="settings-label">新书书名</label>
             <div className="settings-control">
@@ -1345,16 +1825,15 @@ function App() {
                 const activeId = bookshelf.active_book?.id || bookshelf.active_book_id || "";
                 const active = activeId === book.id;
                 return (
-                  <div className="consistency-item" key={book.id} style={{ marginBottom: 8 }}>
-                    <div className="consistency-head" style={{ color: active ? "var(--success)" : "var(--text-primary)" }}>
+                  <div className={`book-card ${active ? "active" : ""}`} key={book.id}>
+                    <div className="book-cover">
                       {book.title}
                     </div>
-                    <div className="consistency-line">{book.folder || ""}</div>
-                    <div className="modal-actions" style={{ marginTop: 10 }}>
-                      <button className={`btn ${active ? "btn-success" : "btn-primary"}`} type="button" disabled={active} onClick={() => void switchBookAction(book.id)}>
-                        {active ? "当前书籍" : "切换到此书"}
-                      </button>
-                    </div>
+                    <div className="book-meta">文件夹：{book.folder || "-"}</div>
+                    <div className="book-meta">更新时间：{book.updated_at || "-"}</div>
+                    <button className={`btn btn-primary btn-sm ${active ? "btn-success" : ""}`} type="button" disabled={active} onClick={() => void switchBookAction(book.id)}>
+                      {active ? "当前写作中" : "切换到此书"}
+                    </button>
                   </div>
                 );
               })
@@ -1396,53 +1875,60 @@ function App() {
       </div>
 
       <div id="outline-modal" className={`modal-overlay ${outlineOpen ? "" : "hidden"}`} onClick={(e) => {
-        if (e.target === e.currentTarget) setOutlineOpen(false);
+        if (e.target === e.currentTarget) closeOutlineModal(true);
       }}>
         <div className="modal-content outline-modal-content">
+          <div id="outline-loading-overlay" className={`loading-overlay ${outlineGenerating ? "" : "hidden"}`}>
+            <div className={`spinner ${outlinePaused ? "paused" : ""}`} />
+            <div className="loading-text">{outlinePaused ? "已暂停生成大纲" : "正在生成大纲..."}</div>
+          </div>
           <div className="modal-header">
             <h3>生成大纲</h3>
-            <button className="icon-btn" type="button" onClick={() => setOutlineOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭大纲弹窗" onClick={() => closeOutlineModal(true)}>×</button>
           </div>
           <div className="outline-modal-body">
             <div className="outline-section">
               <h4>小说框架</h4>
-              <label className="outline-label">总体流程 *</label>
-              <textarea className="outline-input" value={outlineForm.overall_flow} onChange={(e) => setOutlineForm((s) => ({ ...s, overall_flow: e.target.value }))} />
+              <label className="outline-label">总体流程 <span className="required-mark">*</span></label>
+              <textarea id="outline-overall-flow" className="outline-input" placeholder="起始，大致经过，预期结果。" value={outlineForm.overall_flow} onChange={(e) => setOutlineForm((s) => ({ ...s, overall_flow: e.target.value }))} />
               <label className="outline-label">主要卖点</label>
-              <textarea className="outline-input" value={outlineForm.selling_points} onChange={(e) => setOutlineForm((s) => ({ ...s, selling_points: e.target.value }))} />
+              <textarea id="outline-selling-points" className="outline-input" placeholder="例如：金手指/外挂设定: [系统, 重生]" value={outlineForm.selling_points} onChange={(e) => setOutlineForm((s) => ({ ...s, selling_points: e.target.value }))} />
               <label className="outline-label">关键事件</label>
-              <textarea className="outline-input" value={outlineForm.key_events} onChange={(e) => setOutlineForm((s) => ({ ...s, key_events: e.target.value }))} />
+              <textarea id="outline-key-events" className="outline-input" placeholder="如：激励事件、一无所有时刻、高潮。" value={outlineForm.key_events} onChange={(e) => setOutlineForm((s) => ({ ...s, key_events: e.target.value }))} />
               <label className="outline-label">故事节奏</label>
-              <textarea className="outline-input" value={outlineForm.story_pace} onChange={(e) => setOutlineForm((s) => ({ ...s, story_pace: e.target.value }))} />
+              <textarea id="outline-story-pace" className="outline-input" placeholder="是慢热型还是快节奏爽文" value={outlineForm.story_pace} onChange={(e) => setOutlineForm((s) => ({ ...s, story_pace: e.target.value }))} />
             </div>
             <div className="outline-section">
-              <h4>世界观与人物</h4>
-              <label className="outline-label">世界观描述 *</label>
-              <textarea className="outline-input" value={outlineForm.worldview} onChange={(e) => setOutlineForm((s) => ({ ...s, worldview: e.target.value }))} />
-              <label className="outline-label">主角性格标签 *</label>
-              <textarea className="outline-input" value={outlineForm.protagonist_tags} onChange={(e) => setOutlineForm((s) => ({ ...s, protagonist_tags: e.target.value }))} />
+              <h4>主要世界观</h4>
+              <label className="outline-label">世界观描述 <span className="required-mark">*</span></label>
+              <textarea id="outline-worldview" className="outline-input" placeholder="故事背景，势力分布，境界设定（武侠、玄幻）......" value={outlineForm.worldview} onChange={(e) => setOutlineForm((s) => ({ ...s, worldview: e.target.value }))} />
+            </div>
+            <div className="outline-section">
+              <h4>核心人物设定</h4>
+              <label className="outline-label">主角性格标签 <span className="required-mark">*</span></label>
+              <textarea id="outline-protagonist-tags" className="outline-input" placeholder="主角性格标签" value={outlineForm.protagonist_tags} onChange={(e) => setOutlineForm((s) => ({ ...s, protagonist_tags: e.target.value }))} />
               <label className="outline-label">角色动机与欲望</label>
-              <textarea className="outline-input" value={outlineForm.motivation} onChange={(e) => setOutlineForm((s) => ({ ...s, motivation: e.target.value }))} />
+              <textarea id="outline-motivation" className="outline-input" placeholder="角色动机与欲望" value={outlineForm.motivation} onChange={(e) => setOutlineForm((s) => ({ ...s, motivation: e.target.value }))} />
               <label className="outline-label">人物关系图谱</label>
-              <textarea className="outline-input" value={outlineForm.relations} onChange={(e) => setOutlineForm((s) => ({ ...s, relations: e.target.value }))} />
-              <label className="outline-label">反派描绘</label>
-              <textarea className="outline-input" value={outlineForm.antagonist} onChange={(e) => setOutlineForm((s) => ({ ...s, antagonist: e.target.value }))} />
+              <textarea id="outline-relations" className="outline-input" placeholder="包含家庭状况和主要关系人物，例如：大家族、边疆小镇" value={outlineForm.relations} onChange={(e) => setOutlineForm((s) => ({ ...s, relations: e.target.value }))} />
+              <label className="outline-label">反派的描绘</label>
+              <textarea id="outline-antagonist" className="outline-input" placeholder="反派的描绘" value={outlineForm.antagonist} onChange={(e) => setOutlineForm((s) => ({ ...s, antagonist: e.target.value }))} />
               <label className="outline-label">重要伏笔</label>
-              <textarea className="outline-input" value={outlineForm.foreshadowing} onChange={(e) => setOutlineForm((s) => ({ ...s, foreshadowing: e.target.value }))} />
+              <textarea id="outline-foreshadowing" className="outline-input" placeholder="例如：身世之谜" value={outlineForm.foreshadowing} onChange={(e) => setOutlineForm((s) => ({ ...s, foreshadowing: e.target.value }))} />
             </div>
             <div className="outline-section">
-              <h4>输出参数</h4>
-              <label className="outline-label">预期字数 *</label>
-              <input className="outline-text-input" value={outlineForm.target_words} onChange={(e) => setOutlineForm((s) => ({ ...s, target_words: e.target.value }))} />
-              <label className="outline-label">结局偏好 *</label>
-              <input className="outline-text-input" value={outlineForm.ending_pref} onChange={(e) => setOutlineForm((s) => ({ ...s, ending_pref: e.target.value }))} />
+              <h4>输出控制参数</h4>
+              <label className="outline-label">预期字数 <span className="required-mark">*</span></label>
+              <input id="outline-target-words" className="outline-text-input" placeholder="50万/100万/200万......" value={outlineForm.target_words} onChange={(e) => setOutlineForm((s) => ({ ...s, target_words: e.target.value }))} />
+              <label className="outline-label">结局偏好 <span className="required-mark">*</span></label>
+              <input id="outline-ending-pref" className="outline-text-input" placeholder="好结局、坏结局、开放式结局" value={outlineForm.ending_pref} onChange={(e) => setOutlineForm((s) => ({ ...s, ending_pref: e.target.value }))} />
             </div>
           </div>
           <div className="modal-actions" style={{ marginTop: 16 }}>
-            <button className="btn btn-primary" type="button" disabled={outlineGenerating} onClick={() => void generateOutlineFromModal()}>
-              {outlineGenerating ? "生成中..." : "生成大纲"}
+            <button id="outline-generate-confirm-btn" className="btn btn-primary" type="button" disabled={!outlineGenerating && !outlineFormValid} onClick={() => void generateOutlineFromModal()}>
+              {outlineGenerating ? (outlinePaused ? "继续" : "暂停") : "生成大纲"}
             </button>
-            <button className="btn btn-danger" type="button" onClick={() => setOutlineOpen(false)}>取消</button>
+            <button className="btn btn-danger" type="button" disabled={outlineGenerating && !outlinePaused} onClick={() => closeOutlineModal(true)}>取消</button>
           </div>
         </div>
       </div>
@@ -1494,31 +1980,95 @@ function App() {
       </div>
 
       <div id="info-box-modal" className={`modal-overlay ${infoBoxOpen ? "" : "hidden"}`} onClick={(e) => {
-        if (e.target === e.currentTarget) setInfoBoxOpen(false);
+        if (e.target === e.currentTarget) {
+          setInfoBoxOpen(false);
+          closeInfoContextMenu();
+        }
       }}>
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>信息箱</h3>
-            <button className="icon-btn" type="button" onClick={() => setInfoBoxOpen(false)}>×</button>
+            <button className="icon-btn" type="button" onClick={() => {
+              setInfoBoxOpen(false);
+              closeInfoContextMenu();
+            }}>×</button>
           </div>
-          <p className="consistency-summary">仅收集异常信息。</p>
-          <div className="info-box-list">
+          <p className="consistency-summary">仅收集异常信息；点击“复制”或右键可复制单条内容。</p>
+          <div id="info-box-list" className="info-box-list">
             {ui.infoItems.length === 0 ? (
               <div className="info-box-empty">暂无异常信息</div>
             ) : (
               [...ui.infoItems].reverse().map((item) => (
-                <div className="consistency-item" key={item.id}>
-                  <div className="consistency-head">#{item.id}</div>
-                  <div className="consistency-line">{item.message}</div>
+                <div
+                  className="info-box-item"
+                  key={item.id}
+                  data-item-id={item.id}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    openInfoContextMenuAt(event.clientX, event.clientY, item.id);
+                  }}
+                >
+                  <div className="info-box-row">
+                    <span className="info-box-time">{formatInfoTime(item.createdAt)}</span>
+                    <button className="btn btn-primary btn-sm info-box-copy-btn" type="button" onClick={() => void copyInfoBoxItemById(item.id)}>复制</button>
+                  </div>
+                  <div className="info-box-text">{item.message}</div>
                 </div>
               ))
             )}
           </div>
           <div className="modal-actions" style={{ marginTop: 16 }}>
             <button className="btn btn-warning" type="button" onClick={ui.clearInfoItems}>清空</button>
-            <button className="btn btn-danger" type="button" onClick={() => setInfoBoxOpen(false)}>关闭</button>
+            <button className="btn btn-danger" type="button" onClick={() => {
+              setInfoBoxOpen(false);
+              closeInfoContextMenu();
+            }}>关闭</button>
           </div>
         </div>
+      </div>
+
+      <div
+        id="personal-model-context-menu"
+        className={`context-menu ${modelContextMenu.open ? "" : "hidden"}`}
+        style={{ left: modelContextMenu.left, top: modelContextMenu.top }}
+      >
+        <button id="personal-model-menu-copy" type="button" className="context-menu-item" onClick={() => {
+          void handleModelContextCopy();
+          closeModelContextMenu();
+        }} disabled={!modelMenuCanCopy}>复制</button>
+        <button id="personal-model-menu-paste" type="button" className="context-menu-item" onClick={() => {
+          void handleModelContextPaste();
+          closeModelContextMenu();
+        }} disabled={!modelMenuCanPaste}>粘贴</button>
+        <button id="personal-model-menu-cut" type="button" className="context-menu-item" onClick={() => {
+          void handleModelContextCut();
+          closeModelContextMenu();
+        }} disabled={!modelMenuCanCut}>剪切</button>
+        <button id="personal-model-menu-pin-top" type="button" className={`context-menu-item ${modelContextMenu.showPinTop ? "" : "hidden"}`} onClick={() => {
+          handleModelContextPinTop();
+          closeModelContextMenu();
+        }}>设为置顶模型</button>
+      </div>
+
+      <div
+        id="info-box-context-menu"
+        className={`context-menu ${infoContextMenu.open ? "" : "hidden"}`}
+        style={{ left: infoContextMenu.left, top: infoContextMenu.top }}
+      >
+        <button
+          id="info-box-menu-copy"
+          type="button"
+          className="context-menu-item"
+          onClick={() => {
+            const itemId = infoContextItemIdRef.current;
+            if (itemId != null) {
+              void copyInfoBoxItemById(itemId);
+            }
+            closeInfoContextMenu();
+          }}
+        >
+          复制
+        </button>
       </div>
 
       <ToastStack />

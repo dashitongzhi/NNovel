@@ -11,7 +11,6 @@ interface SidebarProps {
   onPatch: (patch: Partial<AppConfig>) => void;
   onSave: () => void;
   onStartStop: () => void;
-  onOpenSettings: () => void;
   onOpenPersonalConfig: () => void;
   onImportFile: (target: ImportTarget, file: File) => void;
 }
@@ -26,12 +25,8 @@ function splitModels(text: string): string[] {
     .filter(Boolean);
 }
 
-function firstModel(text: string, fallback = ""): string {
-  return splitModels(text)[0] || fallback;
-}
-
 export function Sidebar(props: SidebarProps) {
-  const { config, saving, isWriting, personalConfigReady, onPatch, onSave, onStartStop, onOpenSettings, onOpenPersonalConfig, onImportFile } = props;
+  const { config, saving, isWriting, personalConfigReady, onPatch, onSave, onStartStop, onOpenPersonalConfig, onImportFile } = props;
   const personalModelsRaw = splitModels(config.personal_models || "");
   const personalModels = personalModelsRaw.length ? personalModelsRaw : ["deepseek-ai/deepseek-v3.2"];
   const doubaoModelsRaw = splitModels(config.doubao_models || "");
@@ -126,7 +121,6 @@ export function Sidebar(props: SidebarProps) {
       <div className="panel-section">
         <div className="section-header">
           <h3>生成引擎</h3>
-          <button className="btn btn-primary btn-sm" type="button" onClick={onOpenSettings}>更多设置</button>
         </div>
 
         <select
@@ -214,17 +208,11 @@ export function Sidebar(props: SidebarProps) {
         </div>
 
         <div id="doubao-settings" className={config.engine_mode === "doubao" ? "" : "hidden"}>
-          <textarea
-            className="config-input"
-            style={{ minHeight: 72 }}
-            value={config.doubao_models}
-            onChange={(e) =>
-              onPatch({
-                doubao_models: e.target.value,
-                doubao_model: firstModel(e.target.value, config.doubao_model),
-              })
-            }
-            placeholder="每行一个 doubao model id"
+          <ConfigSelect
+            id="doubao-model-select"
+            value={config.doubao_model || doubaoModels[0] || ""}
+            onChange={(value) => onPatch({ doubao_model: value })}
+            options={doubaoModels.map((m) => ({ value: m, label: m }))}
           />
           <ConfigSelect
             id="doubao-reasoning-select"
@@ -235,12 +223,6 @@ export function Sidebar(props: SidebarProps) {
               { value: "medium", label: "思考等级：中" },
               { value: "high", label: "思考等级：高" },
             ]}
-          />
-          <ConfigSelect
-            id="doubao-model-select"
-            value={config.doubao_model || doubaoModels[0] || ""}
-            onChange={(value) => onPatch({ doubao_model: value })}
-            options={doubaoModels.map((m) => ({ value: m, label: m }))}
           />
           <div className="config-hint">豆包密钥请通过环境变量设置：DOUBAO_API_KEY 或 ARK_API_KEY</div>
         </div>

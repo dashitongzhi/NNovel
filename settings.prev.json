@@ -1,0 +1,22 @@
+{
+  "settings_version": 1,
+  "global": {
+    "engine_mode": "claude",
+    "codex_model": "gpt-5.3-codex",
+    "gemini_model": "gemini-3-flash",
+    "claude_model": "sonnet",
+    "doubao_model": "doubao-seed-1-6-lite-251015",
+    "doubao_models": "doubao-seed-1-6-lite-251015\ndoubao-seed-1-6-251015\ndoubao-seed-1-6-flash-250828",
+    "codex_access_mode": "cli",
+    "gemini_access_mode": "cli",
+    "claude_access_mode": "cli",
+    "codex_reasoning_effort": "medium",
+    "gemini_reasoning_effort": "medium",
+    "claude_reasoning_effort": "medium",
+    "doubao_reasoning_effort": "medium",
+    "personal_models": "deepseek-ai/deepseek-v3.2",
+    "personal_model": "deepseek-ai/deepseek-v3.2",
+    "proxy_port": "7890"
+  },
+  "updated_at": "2026-02-15 22:58:09"
+}

@@ -13,6 +13,10 @@ export function stopGenerate(taskId: string): Promise<{ ok: boolean; state?: str
   return apiClient.post<{ ok: boolean; state?: string; request_id?: string }>(`/api/generate/stop/${taskId}`, {});
 }
 
+export function pauseGenerate(taskId: string, paused: boolean): Promise<{ ok: boolean; state?: string; paused?: boolean; request_id?: string }> {
+  return apiClient.post<{ ok: boolean; state?: string; paused?: boolean; request_id?: string }>(`/api/generate/pause/${taskId}`, { paused });
+}
+
 export function savePauseSnapshot(data: {
   task_id: string;
   request_id?: string;

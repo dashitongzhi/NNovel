@@ -1,0 +1,21 @@
+{
+  "library_version": 1,
+  "active_book_id": "book_e802b8e4",
+  "books": [
+    {
+      "id": "default",
+      "title": "默认作品",
+      "folder": "default_book",
+      "created_at": "2026-02-15 20:45:15",
+      "updated_at": "2026-02-15 20:45:15"
+    },
+    {
+      "id": "book_e802b8e4",
+      "title": "selfcheck-book",
+      "folder": "selfcheck-book",
+      "created_at": "2026-02-15 20:59:00",
+      "updated_at": "2026-02-15 20:59:00"
+    }
+  ],
+  "updated_at": "2026-02-15 20:59:00"
+}

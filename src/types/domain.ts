@@ -63,7 +63,7 @@ export type GenerationTaskState =
   | "stopped";
 
 export interface GenerationStatusResponse {
-  state: "running" | "done" | "error" | "stopped" | "stopping";
+  state: "running" | "done" | "error" | "stopped" | "stopping" | "paused";
   partial_content?: string;
   content?: string;
   thinking?: string;

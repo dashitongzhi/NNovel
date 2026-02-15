@@ -74,6 +74,12 @@ export function ModalHost(props: ModalHostProps) {
                 <div className="change-content"><div className="change-key">{x.key}</div><div className="change-diff"><div className="diff-old">{x.oldSummary}</div><div className="diff-new">{x.summary}</div></div></div>
               </div>
             ))}
+            {props.memoryUnchanged.map((x) => (
+              <div className="memory-change-item" key={`u-${x.key}`}>
+                <div><span className="change-tag tag-unchanged">未变</span></div>
+                <div className="change-content"><div className="change-key">{x.key}</div><div className="change-diff"><div className="diff-new">{x.summary}</div></div></div>
+              </div>
+            ))}
           </div>
           <div className="modal-actions" style={{ marginTop: 20 }}>
             <button className="btn btn-primary" type="button" onClick={props.onCloseMemory}>确认</button>

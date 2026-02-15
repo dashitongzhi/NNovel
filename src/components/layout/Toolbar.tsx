@@ -5,6 +5,7 @@ import type { AppConfig, StartupStatus } from "@/types/domain";
 interface ToolbarProps {
   sidebarCollapsed: boolean;
   discardedVisible: boolean;
+  interactionsLocked?: boolean;
   config: AppConfig;
   status: StartupStatus | null;
   statusOverride?: "" | "就绪" | "异常" | "成功";
@@ -21,29 +22,38 @@ interface ToolbarProps {
   onSwitchEngine: (mode: AppConfig["engine_mode"]) => void;
 }
 
-function modeReadyFromStatus(status: StartupStatus | null): boolean {
+function modeReadyFromStatus(status: StartupStatus | null, config: AppConfig): boolean {
   if (!status) return false;
-  if (status.engine_mode === "gemini") {
-    if (status.gemini_access_mode === "api") return status.gemini_api_ready !== false;
+  const mode = (config.engine_mode || "codex") as AppConfig["engine_mode"];
+  if (mode === "gemini") {
+    if (config.gemini_access_mode === "api") return status.gemini_api_ready !== false;
     return status.gemini_available !== false;
   }
-  if (status.engine_mode === "claude") {
-    if (status.claude_access_mode === "api") return status.claude_api_ready !== false;
+  if (mode === "claude") {
+    if (config.claude_access_mode === "api") return status.claude_api_ready !== false;
     return status.claude_available !== false;
   }
-  if (status.engine_mode === "doubao") return status.doubao_ready !== false;
-  if (status.engine_mode === "personal") return status.personal_ready !== false;
-  if (status.codex_access_mode === "api") return status.codex_api_ready !== false;
+  if (mode === "doubao") return status.doubao_ready !== false;
+  if (mode === "personal") return status.personal_ready !== false;
+  if (config.codex_access_mode === "api") return status.codex_api_ready !== false;
   return status.codex_available !== false;
 }
 
-function modeDefaultModelFromStatus(status: StartupStatus | null): string {
+function modeDefaultModelFromStatus(status: StartupStatus | null, mode: AppConfig["engine_mode"]): string {
   if (!status) return "-";
-  if (status.engine_mode === "gemini") return String(status.gemini_model || "-");
-  if (status.engine_mode === "claude") return String(status.claude_model || "-");
-  if (status.engine_mode === "doubao") return String(status.doubao_model || "-");
-  if (status.engine_mode === "personal") return String(status.personal_model || "-");
+  if (mode === "gemini") return String(status.gemini_model || "-");
+  if (mode === "claude") return String(status.claude_model || "-");
+  if (mode === "doubao") return String(status.doubao_model || "-");
+  if (mode === "personal") return String(status.personal_model || "-");
   return String(status.codex_model || "-");
+}
+
+function modeDefaultModelFromConfig(config: AppConfig, mode: AppConfig["engine_mode"]): string {
+  if (mode === "gemini") return String(config.gemini_model || "-");
+  if (mode === "claude") return String(config.claude_model || "-");
+  if (mode === "doubao") return String(config.doubao_model || "-");
+  if (mode === "personal") return String(config.personal_model || "-");
+  return String(config.codex_model || "-");
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -62,15 +72,22 @@ export function Toolbar(props: ToolbarProps) {
     settings: "⚙️",
   } as const;
 
-  const statusReady = modeReadyFromStatus(props.status);
-  const engineStatusText = props.statusOverride || (statusReady ? "就绪" : "异常");
-  const currentModel = String(props.status?.runtime_last_model || modeDefaultModelFromStatus(props.status) || "-");
   const engineMode = (props.config.engine_mode || "codex") as AppConfig["engine_mode"];
+  const statusReady = modeReadyFromStatus(props.status, props.config);
+  const engineStatusText = props.statusOverride || (statusReady ? "就绪" : "异常");
+  const runtimeLastEngine = String(props.status?.runtime_last_engine || "").trim().toLowerCase();
+  const runtimeLastModel = String(props.status?.runtime_last_model || "").trim();
+  const configModel = modeDefaultModelFromConfig(props.config, engineMode);
+  const statusModel = modeDefaultModelFromStatus(props.status, engineMode);
+  const currentModel = configModel
+    || ((runtimeLastModel && runtimeLastEngine === engineMode) ? runtimeLastModel : statusModel || "-");
+  const interactionsLocked = Boolean(props.interactionsLocked);
   const [engineMenuOpen, setEngineMenuOpen] = useState(false);
+  const visibleEngineMenuOpen = engineMenuOpen && !interactionsLocked;
   const enginePickerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!engineMenuOpen) return;
+    if (!visibleEngineMenuOpen) return;
     const onDocClick = (event: MouseEvent) => {
       const root = enginePickerRef.current;
       if (!root) return;
@@ -86,15 +103,16 @@ export function Toolbar(props: ToolbarProps) {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onEsc);
     };
-  }, [engineMenuOpen]);
+  }, [visibleEngineMenuOpen]);
 
-  const IconBtn = (p: { id?: string; title: string; active?: boolean; icon: string; onClick: () => void }) => (
+  const IconBtn = (p: { id?: string; title: string; active?: boolean; icon: string; onClick: () => void; disabled?: boolean }) => (
     <button
       id={p.id}
       className={`icon-btn toolbar-icon-btn glass-btn ${p.active ? "active" : ""}`}
       type="button"
       title={p.title}
       aria-label={p.title}
+      disabled={Boolean(p.disabled)}
       onClick={p.onClick}
       dangerouslySetInnerHTML={{ __html: p.icon }}
     />
@@ -135,7 +153,10 @@ export function Toolbar(props: ToolbarProps) {
               className="engine-picker-btn glass-btn"
               type="button"
               title="切换模型供应商"
-              onClick={() => setEngineMenuOpen((v) => !v)}
+              disabled={interactionsLocked}
+              onClick={() => {
+                if (!interactionsLocked) setEngineMenuOpen((v) => !v);
+              }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
                 <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
@@ -151,7 +172,7 @@ export function Toolbar(props: ToolbarProps) {
               </svg>
               <span>模型: {ENGINE_LABELS[engineMode] || "ChatGPT"}</span>
             </button>
-            <div id="engine-picker-menu" className={`engine-picker-menu glass-panel ${engineMenuOpen ? "" : "hidden"}`}>
+            <div id="engine-picker-menu" className={`engine-picker-menu glass-panel ${visibleEngineMenuOpen ? "" : "hidden"}`}>
               {(["codex", "gemini", "claude", "doubao", "personal"] as const).map((mode) => (
                 <button
                   key={mode}

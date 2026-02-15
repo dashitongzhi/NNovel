@@ -9,10 +9,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "format": "prettier --write .",
-    "dev:backend": "python ../../NNovel/app.py",
-    "dev:web": "vite --host 127.0.0.1 --port 5173 --strictPort",
-    "dev:electron": "wait-on tcp:127.0.0.1:5173 && node electron/dev-runner.cjs",
-    "dev:browser": "vite --host 127.0.0.1 --port 5173 --strictPort"
+    "dev:backend": "node electron/backend-runner.cjs",
+    "dev:web": "vite --host 127.0.0.1 --port 5174 --strictPort",
+    "dev:electron": "wait-on tcp:127.0.0.1:5174 && node electron/dev-runner.cjs",
+    "dev:browser": "vite --host 127.0.0.1 --port 5174 --strictPort"
   },
   "dependencies": {
     "balanced-match": "^4.0.2",

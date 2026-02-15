@@ -2,6 +2,7 @@ import { STAGE_ORDER } from "@/config/defaults";
 import type { GenerationTaskState } from "@/types/domain";
 
 interface GenerationPanelProps {
+  statusState: GenerationTaskState;
   stage: GenerationTaskState;
   stageDurations: Record<string, number>;
   statusText: string;
@@ -10,8 +11,10 @@ interface GenerationPanelProps {
   referenceStatus: string;
   stageTimelineEnabled: boolean;
   isWriting: boolean;
+  hasTask: boolean;
   isPaused: boolean;
   skipVisible: boolean;
+  showTypeCursor: boolean;
   autoScroll: boolean;
   onStartStop: () => void;
   onPauseResume: () => void;
@@ -45,6 +48,7 @@ function formatSeconds(ms: number): string {
 export function GenerationPanel(props: GenerationPanelProps) {
   const canSubmit = props.generatedText.trim().length > 0 && props.stage === "completed";
   const showThinking = props.isWriting && !props.generatedText.trim();
+  const showCursor = props.showTypeCursor && !showThinking && !!props.generatedText;
 
   return (
     <div id="generation-area" className="card">
@@ -52,7 +56,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
         <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
           AI 作家
           <div className="status-indicator-wrapper" style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
-            <span id="status-dot" className={`status-dot ${statusClass(props.stage)}`} />
+            <span id="status-dot" className={`status-dot ${statusClass(props.statusState)}`} />
             <span id="status-text" className="status-text">{props.statusText}</span>
           </div>
           <span
@@ -66,7 +70,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
         <div className="toolbar">
           <button
             id="pause-writing-btn"
-            className={`btn btn-warning btn-sm writer-icon-btn ${props.isWriting ? "" : "hidden"}`}
+            className={`btn btn-warning btn-sm writer-icon-btn ${props.hasTask ? "" : "hidden"}`}
             type="button"
             onClick={props.onPauseResume}
             title={props.isPaused ? "继续写作" : "暂停写作"}
@@ -137,11 +141,14 @@ export function GenerationPanel(props: GenerationPanelProps) {
       <div id="generated-content" className="content-area">
         {showThinking ? (
           <div className="thinking-container">
-            <div className="thinking-spinner" />
+            <div className={`thinking-spinner ${props.isPaused ? "paused" : ""}`} />
             <div id="thinking-text" className={`thinking-text ${props.isPaused ? "paused" : ""}`}>{props.thinkingText || "AI 正在构思..."}</div>
           </div>
         ) : (
-          props.generatedText || ""
+          <span className="generated-inline">
+            {props.generatedText || ""}
+            {showCursor ? <span className="cursor-blink" aria-hidden="true" /> : null}
+          </span>
         )}
       </div>
 
