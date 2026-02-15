@@ -1,0 +1,89 @@
+import { create } from "zustand";
+
+export type ToastType = "success" | "warning" | "error" | "info";
+export type ThemeMode = "light" | "dark" | "auto";
+
+export interface ToastItem {
+  id: number;
+  message: string;
+  type: ToastType;
+}
+
+export interface InfoBoxItem {
+  id: number;
+  message: string;
+  createdAt: number;
+}
+
+interface UiState {
+  theme: ThemeMode;
+  toasts: ToastItem[];
+  infoItems: InfoBoxItem[];
+  sidebarCollapsed: boolean;
+  addToast: (message: string, type?: ToastType) => void;
+  removeToast: (id: number) => void;
+  clearInfoItems: () => void;
+  removeInfoItem: (id: number) => void;
+  setTheme: (theme: ThemeMode) => void;
+  syncTheme: () => void;
+  toggleSidebar: () => void;
+}
+
+let nextToastId = 1;
+const THEME_KEY = "theme";
+
+function readThemeMode(): ThemeMode {
+  const raw = String(localStorage.getItem(THEME_KEY) || "auto").trim().toLowerCase();
+  if (raw === "light" || raw === "dark" || raw === "auto") return raw;
+  return "auto";
+}
+
+function resolvedTheme(mode: ThemeMode): "light" | "dark" {
+  if (mode === "auto") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return mode;
+}
+
+function applyTheme(mode: ThemeMode): void {
+  const applied = resolvedTheme(mode);
+  if (applied === "dark") {
+    document.body.setAttribute("data-theme", "dark");
+    document.documentElement.setAttribute("data-theme", "dark");
+  } else {
+    document.body.removeAttribute("data-theme");
+    document.documentElement.removeAttribute("data-theme");
+  }
+}
+
+export const useUiStore = create<UiState>((set) => ({
+  theme: readThemeMode(),
+  toasts: [],
+  infoItems: [],
+  sidebarCollapsed: false,
+  addToast: (message, type = "success") => {
+    const id = nextToastId++;
+    set((state) => ({
+      toasts: [...state.toasts, { id, message, type }],
+      ...(type === "error"
+        ? { infoItems: [...state.infoItems, { id, message, createdAt: Date.now() }] }
+        : {}),
+    }));
+    window.setTimeout(() => {
+      set((state) => ({ toasts: state.toasts.filter((x) => x.id !== id) }));
+    }, 3200);
+  },
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((x) => x.id !== id) })),
+  clearInfoItems: () => set({ infoItems: [] }),
+  removeInfoItem: (id) => set((state) => ({ infoItems: state.infoItems.filter((x) => x.id !== id) })),
+  setTheme: (theme) => {
+    localStorage.setItem(THEME_KEY, theme);
+    applyTheme(theme);
+    set({ theme });
+  },
+  syncTheme: () => {
+    const mode = useUiStore.getState().theme;
+    applyTheme(mode);
+  },
+  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+}));

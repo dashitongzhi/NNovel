@@ -1,0 +1,110 @@
+#root {
+  overflow: hidden;
+}
+
+#draft-content {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  line-height: 1.8;
+  font-size: 17px;
+  padding: 20px;
+}
+
+#draft-content:focus {
+  outline: none;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  width: min(680px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal-desc {
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.large-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.toast {
+  border: none;
+}
+
+.toast-info {
+  background-color: rgba(0, 122, 255, 0.82);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.toast-warning {
+  background-color: rgba(255, 149, 0, 0.86);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.toast-success {
+  background-color: rgba(52, 199, 89, 0.86);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.toast-error {
+  background-color: rgba(255, 59, 48, 0.88);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+#discarded-drafts-panel.hidden {
+  display: none;
+}
+
+.toolbar-group.right {
+  flex-wrap: nowrap !important;
+  overflow: visible !important;
+}
+
+.toolbar-group.right .toolbar-icon-btn {
+  flex: 0 0 auto;
+}
