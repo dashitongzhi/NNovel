@@ -68,10 +68,28 @@ let streamFinal = false;
 let pollingNoChangeRounds = 0;
 let pollingLastPartial = "";
 let pendingStartToken: { cancelled: boolean } | null = null;
+let pendingResumeToken: { cancelled: boolean } | null = null;
 let pendingPauseDesired: boolean | null = null;
+let pauseSyncNonce = 0;
+let stopSyncNonce = 0;
+let thinkingCycleMaxIndex = -1;
+let thinkingCycleCompleted = false;
+let thinkingCycleAnimating = false;
+let pendingStreamPreviewText = "";
+let pendingStreamPreviewFinalize = false;
 
 const TYPEWRITER_ENABLED_KEY = "writer:typewriterEnabled";
 const TYPEWRITER_SPEED_KEY = "writer:typewriterSpeed";
+const THINKING_CYCLE_STEP_MS = 160;
+const THINKING_PHASE_SEQUENCE = [
+  "正在理解故事大纲，分析人物关系...",
+  "正在构思本段情节的发展方向...",
+  "正在撰写场景描写与人物对话...",
+  "正在深入刻画人物内心活动...",
+  "正在推进故事情节，制造冲突与悬念...",
+  "正在润色文字，调整节奏与氛围...",
+  "即将完成，进行最后的文字打磨...",
+];
 
 function stripPauseMarkerPrefix(text: string): string {
   return String(text || "")
@@ -97,6 +115,50 @@ function normalizeGeneratedByEngine(text: string): string {
   return text;
 }
 
+function normalizeThinkingForMatch(text: string): string {
+  return String(text || "")
+    .replace(/\s+/g, "")
+    .replace(/[.。!！?？]/g, "")
+    .trim();
+}
+
+function findThinkingPhaseIndex(text: string): number {
+  const target = normalizeThinkingForMatch(text);
+  if (!target) return -1;
+  for (let i = 0; i < THINKING_PHASE_SEQUENCE.length; i += 1) {
+    const phase = normalizeThinkingForMatch(THINKING_PHASE_SEQUENCE[i]);
+    if (!phase) continue;
+    if (target === phase || target.includes(phase) || phase.includes(target)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function resetThinkingCycleState(): void {
+  thinkingCycleMaxIndex = -1;
+  thinkingCycleCompleted = false;
+  thinkingCycleAnimating = false;
+  pendingStreamPreviewText = "";
+  pendingStreamPreviewFinalize = false;
+}
+
+function recordThinkingPhase(text: string): void {
+  const idx = findThinkingPhaseIndex(text);
+  if (idx > thinkingCycleMaxIndex) {
+    thinkingCycleMaxIndex = idx;
+  }
+  if (thinkingCycleMaxIndex >= THINKING_PHASE_SEQUENCE.length - 1) {
+    thinkingCycleCompleted = true;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, ms));
+  });
+}
+
 function readTypewriterEnabled(): boolean {
   const raw = localStorage.getItem(TYPEWRITER_ENABLED_KEY);
   if (raw == null) return true;
@@ -115,6 +177,34 @@ const defaultDurations = (): StageDurations => ({
   finishing: 0,
   completed: 0,
 });
+
+function generationSnapshot(): Record<string, unknown> {
+  const s = useGenerationStore.getState();
+  return {
+    stage: s.stage,
+    isWriting: s.isWriting,
+    isPaused: s.isPaused,
+    hasTask: Boolean(s.taskId),
+    taskId: s.taskId || "",
+    requestId: s.requestId || "",
+    skipVisible: s.skipVisible,
+    textLen: String(s.generatedText || "").length,
+  };
+}
+
+function debugGeneration(tag: string, extra?: Record<string, unknown>): void {
+  let suffix = "";
+  if (extra) {
+    try {
+      suffix = ` | ${JSON.stringify(extra)}`;
+    } catch {
+      suffix = "";
+    }
+  }
+  const message = `[debug][gen:${tag}] ${JSON.stringify(generationSnapshot())}${suffix}`;
+  console.debug(message);
+  useUiStore.getState().addInfo(message);
+}
 
 function requestTag(requestId = ""): string {
   const rid = String(requestId || useGenerationStore.getState().requestId || "").trim();
@@ -224,6 +314,7 @@ function resetStreamingState(): void {
   streamTarget = "";
   streamIndex = 0;
   streamFinal = false;
+  resetThinkingCycleState();
   useGenerationStore.setState({ skipVisible: false });
 }
 
@@ -240,6 +331,96 @@ function finalizeGeneratedOutput(finalText: string, toast = true): void {
   setStage("completed");
   if (toast) {
     useUiStore.getState().addToast(`内容生成完毕${requestTag()}`, "success");
+  }
+}
+
+function syncPauseToBackend(taskId: string, paused: boolean): void {
+  const nonce = ++pauseSyncNonce;
+  debugGeneration("pause:sync:enqueue", { taskId, paused, nonce });
+  const run = (attempt: number): void => {
+    if (nonce !== pauseSyncNonce) return;
+    debugGeneration("pause:sync:try", { taskId, paused, nonce, attempt });
+    void pauseGenerate(taskId, paused)
+      .then(() => {
+        if (nonce !== pauseSyncNonce) return;
+        debugGeneration("pause:sync:ok", { taskId, paused, nonce, attempt });
+      })
+      .catch(() => {
+        if (nonce !== pauseSyncNonce) return;
+        debugGeneration("pause:sync:fail", { taskId, paused, nonce, attempt });
+        if (attempt >= 2) return;
+        window.setTimeout(() => run(attempt + 1), 180 * (attempt + 1));
+      });
+  };
+  run(0);
+}
+
+function syncStopToBackend(taskId: string): void {
+  const nonce = ++stopSyncNonce;
+  debugGeneration("stop:sync:enqueue", { taskId, nonce });
+  const run = (attempt: number): void => {
+    if (nonce !== stopSyncNonce) return;
+    debugGeneration("stop:sync:try", { taskId, nonce, attempt });
+    void stopGenerate(taskId)
+      .then((payload) => {
+        if (nonce !== stopSyncNonce) return;
+        if (payload.request_id) {
+          useGenerationStore.setState({ requestId: payload.request_id });
+        }
+        debugGeneration("stop:sync:ok", { taskId, nonce, attempt, requestId: payload.request_id || "" });
+      })
+      .catch((error) => {
+        if (nonce !== stopSyncNonce) return;
+        debugGeneration("stop:sync:fail", { taskId, nonce, attempt });
+        if (attempt >= 2) {
+          const message = error instanceof Error ? error.message : "停止请求发送失败";
+          useUiStore.getState().addToast(`停止请求发送失败: ${message}`, "warning");
+          return;
+        }
+        window.setTimeout(() => run(attempt + 1), 220 * (attempt + 1));
+      });
+  };
+  run(0);
+}
+
+function flushBufferedStreamingPreview(): void {
+  if (!thinkingCycleCompleted) return;
+  const state = useGenerationStore.getState();
+  if (!state.isWriting || state.isPaused) return;
+  const buffered = String(pendingStreamPreviewText || "");
+  if (!buffered.trim()) return;
+  const finalize = Boolean(pendingStreamPreviewFinalize);
+  pendingStreamPreviewText = "";
+  pendingStreamPreviewFinalize = false;
+  queueStreamingPreview(buffered, finalize);
+  if (useGenerationStore.getState().stage === "queued") {
+    setStage("generating");
+  }
+}
+
+async function ensureThinkingCycleThenStream(): Promise<void> {
+  if (thinkingCycleCompleted || thinkingCycleAnimating) {
+    flushBufferedStreamingPreview();
+    return;
+  }
+  thinkingCycleAnimating = true;
+  try {
+    const start = Math.max(thinkingCycleMaxIndex + 1, 0);
+    for (let i = start; i < THINKING_PHASE_SEQUENCE.length; i += 1) {
+      const state = useGenerationStore.getState();
+      if (!state.isWriting || state.isPaused) {
+        break;
+      }
+      useGenerationStore.setState({ thinking: THINKING_PHASE_SEQUENCE[i] });
+      thinkingCycleMaxIndex = Math.max(thinkingCycleMaxIndex, i);
+      await sleep(THINKING_CYCLE_STEP_MS);
+    }
+    if (thinkingCycleMaxIndex >= THINKING_PHASE_SEQUENCE.length - 1) {
+      thinkingCycleCompleted = true;
+    }
+  } finally {
+    thinkingCycleAnimating = false;
+    flushBufferedStreamingPreview();
   }
 }
 
@@ -295,7 +476,8 @@ function queueStreamingPreview(content: string, finalize = false): void {
     }
   };
 
-  typingTimer = window.setTimeout(tick, Math.max(10, state.typewriterSpeed));
+  // Start typewriter immediately on first available content, then continue at configured speed.
+  tick();
 }
 
 function nextPollingDelay(startedAt: number): number {
@@ -314,6 +496,10 @@ function nextPollingDelay(startedAt: number): number {
 async function poll(taskId: string): Promise<void> {
   const state = useGenerationStore.getState();
   if (!state.isWriting || state.isPaused || state.taskId !== taskId) {
+    debugGeneration("poll:skip", {
+      reason: !state.isWriting ? "not-writing" : state.isPaused ? "paused" : "task-mismatch",
+      expectTaskId: taskId,
+    });
     return;
   }
 
@@ -332,8 +518,14 @@ async function poll(taskId: string): Promise<void> {
       stopPolling();
       setStage("finishing");
       const finalText = normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(result.content || "")));
-      if (newest.typewriterEnabled) {
-        queueStreamingPreview(finalText, true);
+      if (newest.typewriterEnabled && finalText.trim()) {
+        pendingStreamPreviewText = finalText;
+        pendingStreamPreviewFinalize = true;
+        if (!thinkingCycleCompleted) {
+          await ensureThinkingCycleThenStream();
+        } else {
+          flushBufferedStreamingPreview();
+        }
       } else {
         finalizeGeneratedOutput(finalText, true);
       }
@@ -376,19 +568,28 @@ async function poll(taskId: string): Promise<void> {
     }
 
     if (result.state === "paused") {
+      if (pendingPauseDesired === false) {
+        debugGeneration("poll:paused:ignored", { reason: "frontend-resuming", taskId });
+        const delay = 160;
+        pollTimer = window.setTimeout(() => {
+          void poll(taskId);
+        }, delay);
+        return;
+      }
       stopPolling();
       stopTyping();
       pendingPauseDesired = true;
       useGenerationStore.setState({
         isPaused: true,
         thinking: result.thinking || "已暂停",
-        skipVisible: false,
+        skipVisible: Boolean(streamFinal && streamTarget && streamIndex < streamTarget.length),
       });
       return;
     }
 
     const thinking = String(result.thinking || "AI 正在构思...");
     const partial = normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(result.partial_content || "")));
+    recordThinkingPhase(thinking);
 
     if (partial && partial === pollingLastPartial) {
       pollingNoChangeRounds += 1;
@@ -402,13 +603,24 @@ async function poll(taskId: string): Promise<void> {
         setStage("generating");
       }
       if (useGenerationStore.getState().typewriterEnabled) {
-        queueStreamingPreview(partial, false);
+        if (thinkingCycleCompleted) {
+          queueStreamingPreview(partial, false);
+        } else {
+          pendingStreamPreviewText = partial;
+          pendingStreamPreviewFinalize = false;
+          if (!useGenerationStore.getState().generatedText.trim()) {
+            useGenerationStore.setState({ thinking });
+          }
+          void ensureThinkingCycleThenStream();
+        }
       } else {
         useGenerationStore.setState({ generatedText: partial, skipVisible: false });
       }
     }
 
-    useGenerationStore.setState({ thinking });
+    if (!useGenerationStore.getState().generatedText.trim() && !thinkingCycleAnimating) {
+      useGenerationStore.setState({ thinking });
+    }
 
     const delay = nextPollingDelay(useGenerationStore.getState().pollingStartedAt);
     pollTimer = window.setTimeout(() => {
@@ -451,11 +663,29 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   recoveryInfo: null,
 
   start: async (config) => {
+    debugGeneration("start:click", {
+      engine_mode: config.engine_mode,
+      model:
+        config.engine_mode === "doubao"
+          ? config.doubao_model
+          : config.engine_mode === "personal"
+            ? config.personal_model
+            : config.engine_mode === "gemini"
+              ? config.gemini_model
+              : config.engine_mode === "claude"
+                ? config.claude_model
+                : config.codex_model,
+    });
     if (get().isWriting) {
+      debugGeneration("start:redirect-stop");
       void get().stop();
       return;
     }
 
+    if (pendingResumeToken) {
+      pendingResumeToken.cancelled = true;
+      pendingResumeToken = null;
+    }
     const startToken = { cancelled: false };
     pendingStartToken = startToken;
 
@@ -476,6 +706,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       requestId: "",
       skipVisible: false,
     });
+    debugGeneration("start:optimistic-set");
     setStage("queued");
 
     try {
@@ -485,6 +716,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         throw new Error("未获取到任务ID");
       }
       if (startToken.cancelled) {
+        debugGeneration("start:cancelled-before-bind", { taskId });
         try {
           await stopGenerate(taskId);
         } catch {
@@ -495,6 +727,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         return;
       }
       set({ taskId, requestId: payload.request_id || "" });
+      debugGeneration("start:task-bound", { taskId, requestId: payload.request_id || "" });
       if (pendingPauseDesired === true) {
         stopPolling();
         stopTyping();
@@ -504,14 +737,20 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
           skipVisible: false,
         });
         setStage("paused");
+        debugGeneration("start:paused-before-poll", { taskId });
         void pauseGenerate(taskId, true).catch(() => {
           // ignore pause sync failure
         });
         return;
       }
       setStage("generating");
+      debugGeneration("start:poll-begin", { taskId });
       await poll(taskId);
     } catch (error) {
+      if (startToken.cancelled) {
+        debugGeneration("start:cancelled-ignore-error");
+        return;
+      }
       stopPolling();
       resetStreamingState();
       pendingPauseDesired = null;
@@ -526,20 +765,33 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         skipVisible: false,
       });
       useUiStore.getState().addToast(`启动生成失败: ${parsed}${requestTag()}`, "error");
+      debugGeneration("start:error", { message: parsed });
     } finally {
       if (pendingStartToken === startToken) {
         pendingStartToken = null;
       }
+      debugGeneration("start:finally");
     }
   },
 
   stop: async () => {
+    debugGeneration("stop:click");
     const { taskId } = get();
     pendingPauseDesired = null;
+    if (pendingResumeToken && !taskId) {
+      pendingResumeToken.cancelled = true;
+      pendingResumeToken = null;
+    }
     if (pendingStartToken && !taskId) {
       pendingStartToken.cancelled = true;
     }
     if (!taskId && !get().isWriting) {
+      set({
+        stage: "stopped",
+        thinking: "已停止",
+        skipVisible: false,
+      });
+      debugGeneration("stop:no-task-frontend-only");
       return;
     }
 
@@ -557,18 +809,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       skipVisible: false,
       requestId: "",
     });
+    debugGeneration("stop:optimistic-set", { taskId });
 
     if (taskId) {
-      void stopGenerate(taskId)
-        .then((payload) => {
-          if (payload.request_id) {
-            set({ requestId: payload.request_id });
-          }
-        })
-        .catch((error) => {
-          const message = error instanceof Error ? error.message : "停止请求发送失败";
-          useUiStore.getState().addToast(`停止请求发送失败: ${message}`, "warning");
-        });
+      syncStopToBackend(taskId);
     }
 
     useUiStore.getState().addToast(`写作已停止${requestTag()}`, "warning");
@@ -576,32 +820,29 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   togglePause: async () => {
     const state = get();
-    if (!state.taskId) {
-      if (state.isWriting) {
-        const nextPaused = !state.isPaused;
-        pendingPauseDesired = nextPaused;
-        if (nextPaused) {
-          stopPolling();
-          stopTyping();
-          set({ isPaused: true, thinking: "已暂停", skipVisible: false });
-          useUiStore.getState().addToast("写作已暂停", "info");
-          return;
-        }
-        set({ isPaused: false, thinking: "AI 正在创作..." });
-        useUiStore.getState().addToast("继续写作", "info");
-        return;
-      }
-      useUiStore.getState().addToast("当前没有可暂停的写作任务", "warning");
-      return;
-    }
+    debugGeneration("pause:click", {
+      stateIsWriting: state.isWriting,
+      stateIsPaused: state.isPaused,
+      taskId: state.taskId || "",
+    });
+    const hasBackendTask = Boolean(state.taskId);
+    const hasLiveWriting = Boolean(state.isWriting || hasBackendTask);
+    const nextPaused = !state.isPaused;
 
-    if (!state.isPaused) {
+    // Front-end first: always flip visual state immediately on click.
+    if (nextPaused) {
       pendingPauseDesired = true;
       stopPolling();
       stopTyping();
-      set({ isPaused: true, thinking: "已暂停", skipVisible: false });
+      set({
+        isPaused: true,
+        thinking: "已暂停",
+        skipVisible: Boolean(streamFinal && streamTarget && streamIndex < streamTarget.length),
+        stage: hasLiveWriting ? state.stage : "paused",
+      });
+
       const snapshot = stripPauseMarkerPrefix(String(streamTarget || state.generatedText || "")).trim();
-      if (snapshot) {
+      if (snapshot && hasBackendTask) {
         void savePauseSnapshot({
           task_id: state.taskId,
           request_id: state.requestId,
@@ -610,23 +851,48 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
           // ignore snapshot save errors
         });
       }
-      void pauseGenerate(state.taskId, true).catch(() => {
-        // ignore pause sync failure
-      });
+      if (hasBackendTask) {
+        syncPauseToBackend(state.taskId, true);
+      }
       useUiStore.getState().addToast("写作已暂停", "info");
+      debugGeneration("pause:frontend-paused", { hasBackendTask });
+
+      // Defensive fallback for edge-cases where user clicked while no active task.
+      if (!hasLiveWriting) {
+        window.setTimeout(() => {
+          const latest = get();
+          if (!latest.isWriting && !latest.taskId) {
+            set({
+              isPaused: false,
+              thinking: "就绪",
+              stage: latest.stage === "paused" ? "idle" : latest.stage,
+            });
+          }
+        }, 140);
+      }
       return;
     }
 
     pendingPauseDesired = false;
-    if (!["queued", "generating", "finishing"].includes(String(state.stage || ""))) {
+    if (hasLiveWriting && !["queued", "generating", "finishing"].includes(String(state.stage || ""))) {
       setStage("generating");
     }
-    set({ isPaused: false, thinking: "AI 正在创作..." });
-    void pauseGenerate(state.taskId, false).catch(() => {
-      // ignore resume sync failure
+    set({
+      isPaused: false,
+      thinking: hasLiveWriting ? "AI 正在创作..." : "就绪",
+      stage: !hasLiveWriting && state.stage === "paused" ? "idle" : state.stage,
     });
-    useUiStore.getState().addToast("继续写作", "info");
-    void poll(state.taskId);
+
+    if (hasBackendTask) {
+      syncPauseToBackend(state.taskId, false);
+      void poll(state.taskId);
+      useUiStore.getState().addToast("继续写作", "info");
+      debugGeneration("pause:frontend-resumed", { hasBackendTask: true });
+      return;
+    }
+
+    useUiStore.getState().addToast(hasLiveWriting ? "继续写作" : "当前没有可继续的写作任务", hasLiveWriting ? "info" : "warning");
+    debugGeneration("pause:frontend-resumed", { hasBackendTask: false, hasLiveWriting });
   },
 
   setAutoScroll: (enabled) => set({ autoScroll: enabled }),
@@ -655,10 +921,15 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   setReferenceStatus: (text) => set({ referenceStatus: String(text || "") }),
 
   skipTypewriter: () => {
-    if (!streamTarget) return;
+    debugGeneration("skip:click", { hasStreamTarget: Boolean(streamTarget), streamFinal });
+    if (!streamTarget) {
+      useUiStore.getState().addToast("当前没有可跳过的动画", "info");
+      debugGeneration("skip:ignored-no-target");
+      return;
+    }
     stopTyping();
     streamIndex = streamTarget.length;
-    set({ generatedText: streamTarget });
+    set({ generatedText: streamTarget, skipVisible: false });
     if (streamFinal) {
       finalizeGeneratedOutput(streamTarget, true);
     } else {
@@ -668,6 +939,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   clearGenerated: () => {
     pendingPauseDesired = null;
+    if (pendingResumeToken) {
+      pendingResumeToken.cancelled = true;
+      pendingResumeToken = null;
+    }
     resetStreamingState();
     stopPolling();
     set({
@@ -726,7 +1001,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       } else if (normalized.partial_content) {
         set({
           generatedText: normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(normalized.partial_content || ""))),
-          thinking: "检测到中断任务，可继续",
+          thinking: "就绪",
           stage: "paused",
           isWriting: false,
           isPaused: false,
@@ -742,6 +1017,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   resumeRecovery: async () => {
+    const resumeToken = { cancelled: false };
+    pendingResumeToken = resumeToken;
     pendingPauseDesired = null;
     stopPolling();
     resetStreamingState();
@@ -762,6 +1039,15 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     });
     try {
       const payload = await resumeGenerate();
+      if (resumeToken.cancelled) {
+        const staleTaskId = String(payload.task_id || "");
+        if (staleTaskId) {
+          void stopGenerate(staleTaskId).catch(() => {
+            // ignore stale stop failure
+          });
+        }
+        return false;
+      }
       const taskId = String(payload.task_id || "");
       if (!payload.ok || !taskId) {
         set({
@@ -791,6 +1077,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       await poll(taskId);
       return true;
     } catch {
+      if (resumeToken.cancelled) {
+        return false;
+      }
       set({
         isWriting: false,
         isPaused: false,
@@ -801,6 +1090,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         skipVisible: false,
       });
       return false;
+    } finally {
+      if (pendingResumeToken === resumeToken) {
+        pendingResumeToken = null;
+      }
     }
   },
 }));

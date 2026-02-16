@@ -378,6 +378,21 @@ function App() {
 
   const [tick, setTick] = useState(Date.now());
   const [doubaoModelEditorRows, setDoubaoModelEditorRows] = useState<string[]>(["doubao-seed-1-6-251015"]);
+
+  const debugUiAction = (tag: string, extra?: Record<string, unknown>): void => {
+    const g = useGenerationStore.getState();
+    const payload = {
+      stage: g.stage,
+      isWriting: g.isWriting,
+      isPaused: g.isPaused,
+      taskId: g.taskId || "",
+      skipVisible: g.skipVisible,
+      ...(extra || {}),
+    };
+    const message = `[debug][ui:${tag}] ${JSON.stringify(payload)}`;
+    console.debug(message);
+    ui.addInfo(message);
+  };
   const [personalModelEditorRows, setPersonalModelEditorRows] = useState<string[]>(["deepseek-ai/deepseek-v3.2"]);
   const [modelContextMenu, setModelContextMenu] = useState<ModelContextMenuState>({ open: false, left: 0, top: 0, showPinTop: false });
   const [modelMenuCanCopy, setModelMenuCanCopy] = useState(false);
@@ -484,10 +499,7 @@ function App() {
       } catch {
         // ignore prewarm failure
       }
-      const recovery = await generation.detectRecovery();
-      if (recovery?.recoverable && !recovery.live_task) {
-        ui.addToast("检测到异常中断任务，点击开始写作可续写", "warning");
-      }
+      await generation.detectRecovery();
       if (configStore.config.first_run_required) {
         setBookshelfOpen(true);
         await reloadBookshelf();
@@ -688,7 +700,9 @@ function App() {
   }, [configStore.config.personal_base_url, configStore.config.personal_api_key, hasPersonalModel]);
 
   const handleStartStop = (): void => {
+    debugUiAction("start-stop:click");
     if (useGenerationStore.getState().isWriting) {
+      debugUiAction("start-stop:route-stop");
       void generation.stop();
       return;
     }
@@ -698,17 +712,26 @@ function App() {
 
     const recovery = useGenerationStore.getState().recoveryInfo;
     if (recovery?.recoverable) {
+      debugUiAction("start-stop:route-recovery");
       void (async () => {
-        const resumed = await generation.resumeRecovery();
-        if (resumed) {
-          ui.addToast("已从中断点恢复写作", "success");
-          return;
+        try {
+          const resumed = await generation.resumeRecovery();
+          if (resumed) {
+            debugUiAction("start-stop:recovery-ok");
+            useGenerationStore.setState({ recoveryInfo: null });
+            return;
+          }
+        } catch {
+          // ignore and fallback to normal start
         }
+        useGenerationStore.setState({ recoveryInfo: null });
+        debugUiAction("start-stop:recovery-fallback-start");
         await generation.start(useConfigStore.getState().config);
       })();
       return;
     }
 
+    debugUiAction("start-stop:route-start");
     void generation.start(useConfigStore.getState().config);
     void (async () => {
       try {
@@ -720,6 +743,16 @@ function App() {
         // ignore chapter check failure; keep optimistic front-end response
       }
     })();
+  };
+
+  const handlePauseResume = (): void => {
+    debugUiAction("pause-resume:click");
+    void generation.togglePause();
+  };
+
+  const handleSkipAnimation = (): void => {
+    debugUiAction("skip:click");
+    generation.skipTypewriter();
   };
 
   const handleSaveConfig = async (opts?: { silent?: boolean }): Promise<void> => {
@@ -1701,8 +1734,8 @@ function App() {
               }
               autoScroll={generation.autoScroll}
               onStartStop={() => void handleStartStop()}
-              onPauseResume={() => void generation.togglePause()}
-              onSkip={generation.skipTypewriter}
+              onPauseResume={() => void handlePauseResume()}
+              onSkip={() => void handleSkipAnimation()}
               onToggleAutoScroll={() => {
                 generation.setAutoScroll(!generation.autoScroll);
                 ui.addToast(generation.autoScroll ? "自动滚动已关闭" : "自动滚动已开启", "info");
@@ -2437,4 +2470,3 @@ function App() {
 }
 
 export default App;
-

@@ -49,6 +49,18 @@ export function GenerationPanel(props: GenerationPanelProps) {
   const canSubmit = props.generatedText.trim().length > 0 && props.stage === "completed";
   const showThinking = props.isWriting && !props.generatedText.trim();
   const showCursor = props.showTypeCursor && !showThinking && !!props.generatedText;
+  const triggerByPress = (event: { currentTarget: HTMLButtonElement; preventDefault: () => void }, action: () => void) => {
+    event.preventDefault();
+    event.currentTarget.dataset.fastPressed = "1";
+    action();
+  };
+  const triggerByClickFallback = (event: { currentTarget: HTMLButtonElement }, action: () => void) => {
+    if (event.currentTarget.dataset.fastPressed === "1") {
+      event.currentTarget.dataset.fastPressed = "";
+      return;
+    }
+    action();
+  };
 
   return (
     <div id="generation-area" className="card">
@@ -72,7 +84,8 @@ export function GenerationPanel(props: GenerationPanelProps) {
             id="pause-writing-btn"
             className={`btn btn-warning btn-sm writer-icon-btn ${props.isWriting || props.hasTask ? "" : "hidden"}`}
             type="button"
-            onClick={props.onPauseResume}
+            onMouseDown={(e) => triggerByPress(e, props.onPauseResume)}
+            onClick={(e) => triggerByClickFallback(e, props.onPauseResume)}
             title={props.isPaused ? "继续写作" : "暂停写作"}
             aria-label={props.isPaused ? "继续写作" : "暂停写作"}
           >
@@ -88,7 +101,8 @@ export function GenerationPanel(props: GenerationPanelProps) {
             id="start-writing-btn"
             className={`btn btn-sm writer-icon-btn ${props.isWriting ? "btn-danger" : "btn-success"}`}
             type="button"
-            onClick={props.onStartStop}
+            onMouseDown={(e) => triggerByPress(e, props.onStartStop)}
+            onClick={(e) => triggerByClickFallback(e, props.onStartStop)}
             title={props.isWriting ? "停止写作" : "开始写作"}
             aria-label={props.isWriting ? "停止写作" : "开始写作"}
           >
@@ -103,7 +117,8 @@ export function GenerationPanel(props: GenerationPanelProps) {
           <button
             id="skip-anim-btn"
             className={`btn btn-sm btn-primary writer-icon-btn ${props.skipVisible ? "" : "hidden"}`}
-            onClick={props.onSkip}
+            onMouseDown={(e) => triggerByPress(e, props.onSkip)}
+            onClick={(e) => triggerByClickFallback(e, props.onSkip)}
             type="button"
             title="跳过动画"
             aria-label="跳过动画"
@@ -113,7 +128,8 @@ export function GenerationPanel(props: GenerationPanelProps) {
           <button
             id="auto-scroll-btn"
             className={`btn btn-sm btn-primary writer-icon-btn ${props.autoScroll ? "lock-on" : "lock-off"}`}
-            onClick={props.onToggleAutoScroll}
+            onMouseDown={(e) => triggerByPress(e, props.onToggleAutoScroll)}
+            onClick={(e) => triggerByClickFallback(e, props.onToggleAutoScroll)}
             type="button"
             title={props.autoScroll ? "自动滚动: 开" : "自动滚动: 关"}
             aria-label={props.autoScroll ? "自动滚动: 开" : "自动滚动: 关"}
