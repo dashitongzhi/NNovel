@@ -440,10 +440,6 @@
   pointer-events: none !important;
 }
 
-.liquid-glass-layer.safe-mode > span {
-  display: none !important;
-}
-
 .liquid-glass-static-fill {
   position: absolute;
   inset: 0;
@@ -451,22 +447,22 @@
   border: 1px solid rgba(255, 255, 255, 0.38);
   background:
     linear-gradient(150deg, rgba(255, 255, 255, 0.34), rgba(244, 249, 255, 0.18)),
-    radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, 0.22), transparent 58%);
-  backdrop-filter: blur(16px) saturate(1.22);
-  -webkit-backdrop-filter: blur(16px) saturate(1.22);
+    radial-gradient(120% 86% at 8% 4%, rgba(255, 255, 255, 0.2), transparent 56%);
+  backdrop-filter: blur(15px) saturate(1.18);
+  -webkit-backdrop-filter: blur(15px) saturate(1.18);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
     0 10px 24px rgba(19, 35, 58, 0.18);
 }
 
 [data-theme="dark"] .liquid-glass-static-fill {
-  border-color: rgba(159, 191, 238, 0.24);
+  border-color: rgba(159, 191, 238, 0.22);
   background:
     linear-gradient(150deg, rgba(49, 75, 112, 0.42), rgba(20, 34, 56, 0.24)),
-    radial-gradient(120% 80% at 0% 0%, rgba(111, 151, 220, 0.16), transparent 58%);
-  backdrop-filter: blur(14px) saturate(1.14);
-  -webkit-backdrop-filter: blur(14px) saturate(1.14);
+    radial-gradient(120% 86% at 8% 4%, rgba(111, 151, 220, 0.16), transparent 56%);
+  backdrop-filter: blur(13px) saturate(1.12);
+  -webkit-backdrop-filter: blur(13px) saturate(1.12);
   box-shadow:
     inset 0 1px 0 rgba(190, 211, 240, 0.2),
     inset 0 -1px 0 rgba(84, 120, 176, 0.16),
@@ -490,7 +486,13 @@
   width: 100% !important;
   height: 100% !important;
   border-radius: inherit !important;
-  box-shadow: none !important;
+}
+
+/* Ensure the library's children-wrapper div fills the glass so that
+   glassSize measurement returns the correct dimensions. */
+.liquid-glass-native .glass > div {
+  width: 100%;
+  height: 100%;
 }
 
 .liquid-glass-native-fill {
@@ -855,4 +857,104 @@ textarea:focus,
 [data-theme="dark"] .toast {
   background: linear-gradient(150deg, rgba(38, 63, 98, 0.56), rgba(21, 37, 60, 0.3));
   border-color: rgba(128, 163, 217, 0.36);
+}
+
+/* Ensure dropdown menus render above glass panels and editor content */
+#extra-settings {
+  position: relative;
+  z-index: 2600;
+  overflow: visible;
+}
+
+#toolbar-container,
+.top-toolbar-row {
+  position: relative;
+  z-index: 2601;
+  overflow: visible !important;
+}
+
+.engine-picker,
+.config-select {
+  position: relative;
+  z-index: 2602;
+}
+
+.engine-picker-menu,
+.config-select-menu {
+  z-index: 4600 !important;
+}
+
+/* Model picker centered alignment */
+.engine-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.engine-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+}
+
+#engine-picker-menu.engine-picker-menu {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
+  min-width: max-content;
+}
+
+#engine-picker-menu.engine-picker-menu button {
+  text-align: center;
+}
+
+/* Reduce header flicker in software-rendered glass mode */
+.card {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+#writing-desk .liquid-glass-frame.card {
+  contain: layout;
+}
+
+#writing-desk .card-header {
+  position: relative;
+  z-index: 2;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+#writing-desk .card-footer {
+  position: relative;
+  z-index: 2;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+#writing-desk .liquid-glass-layer.compat-mode .liquid-glass-static-fill {
+  backdrop-filter: blur(11px) saturate(1.08);
+  -webkit-backdrop-filter: blur(11px) saturate(1.08);
+}
+
+#writing-desk .liquid-glass-frame.compat-mode .card-header,
+#writing-desk .liquid-glass-frame.compat-mode .card-footer {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(250, 253, 255, 0.36));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+[data-theme="dark"] #writing-desk .liquid-glass-frame.compat-mode .card-header,
+[data-theme="dark"] #writing-desk .liquid-glass-frame.compat-mode .card-footer {
+  background: linear-gradient(180deg, rgba(63, 92, 132, 0.38), rgba(33, 55, 85, 0.24));
+}
+
+#app.engine-switching #writing-desk .card,
+#app.engine-switching #writing-desk .card-header,
+#app.engine-switching #writing-desk .card-footer,
+#app.engine-switching #writing-desk .liquid-glass-native,
+#app.engine-switching #writing-desk .liquid-glass-static-fill {
+  animation: none !important;
+  transition: none !important;
 }

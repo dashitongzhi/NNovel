@@ -23,8 +23,6 @@ export function ConfigSelect(props: ConfigSelectProps) {
   const commitSelection = (nextValue: string) => {
     const trimmed = String(nextValue || "").trim();
     if (!trimmed) return;
-    // Temporary debug: visible in default console level.
-    console.log("[debug][ConfigSelect:select]", { id, from: value, to: trimmed });
     onChange(trimmed);
     setOpen(false);
   };
@@ -46,7 +44,7 @@ export function ConfigSelect(props: ConfigSelectProps) {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onEsc);
     };
-  }, [open]);
+  }, [id, open]);
 
   const normalizedOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -67,11 +65,9 @@ export function ConfigSelect(props: ConfigSelectProps) {
   useEffect(() => {
     if (!activeValue) return;
     if (activeValue !== value) {
-      // Temporary debug: track auto-fallback selection correction.
-      console.log("[debug][ConfigSelect:auto-fix]", { id, value, activeValue });
       onChange(activeValue);
     }
-  }, [activeValue, onChange, value]);
+  }, [activeValue, id, onChange, value]);
 
   return (
     <div ref={rootRef} className="config-select">
@@ -81,8 +77,6 @@ export function ConfigSelect(props: ConfigSelectProps) {
         className={className}
         disabled={disabled}
         onClick={() => {
-          // Temporary debug: track menu open toggle.
-          console.log("[debug][ConfigSelect:toggle]", { id, value, activeValue, disabled, open: !open });
           if (!disabled) setOpen((v) => !v);
         }}
       >

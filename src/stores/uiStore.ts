@@ -23,6 +23,8 @@ interface UiState {
   toasts: ToastItem[];
   infoItems: InfoBoxItem[];
   sidebarCollapsed: boolean;
+  /** ID of the card whose LiquidGlass runtime is active (hover-based). */
+  activeGlassId: string | null;
   addInfo: (message: string) => void;
   addToast: (message: string, type?: ToastType) => void;
   removeToast: (id: number) => void;
@@ -33,6 +35,7 @@ interface UiState {
   setLiquidProfile: (profile: LiquidProfile) => void;
   syncTheme: () => void;
   toggleSidebar: () => void;
+  setActiveGlassId: (id: string | null) => void;
 }
 
 let nextToastId = 1;
@@ -83,6 +86,7 @@ export const useUiStore = create<UiState>((set) => ({
   toasts: [],
   infoItems: [],
   sidebarCollapsed: false,
+  activeGlassId: null,
   addInfo: (message) => {
     const id = nextToastId++;
     set((state) => ({
@@ -122,4 +126,5 @@ export const useUiStore = create<UiState>((set) => ({
     applyTheme(mode);
   },
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  setActiveGlassId: (id) => set({ activeGlassId: id }),
 }));

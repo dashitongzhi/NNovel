@@ -366,6 +366,8 @@ function App() {
   const [infoBoxOpen, setInfoBoxOpen] = useState(false);
   const [connectivityTesting, setConnectivityTesting] = useState(false);
   const [runtimeStatus, setRuntimeStatus] = useState<StartupStatus | null>(null);
+  const [engineSwitching, setEngineSwitching] = useState(false);
+  const engineSwitchReleaseRef = useRef<number | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     const raw = String(localStorage.getItem("theme") || "auto").trim().toLowerCase();
     if (raw === "light" || raw === "dark" || raw === "auto") return raw;
@@ -552,6 +554,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STAGE_TIMELINE_ENABLED_KEY, String(stageTimelineEnabled));
   }, [stageTimelineEnabled]);
+
+  useEffect(() => () => {
+    if (engineSwitchReleaseRef.current != null) {
+      window.clearTimeout(engineSwitchReleaseRef.current);
+      engineSwitchReleaseRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (configStore.config.first_run_required) {
@@ -795,6 +804,7 @@ function App() {
   };
 
   const switchEngineMode = async (mode: AppConfig["engine_mode"]): Promise<void> => {
+    if (engineSwitching) return;
     if (generation.isWriting) {
       ui.addToast("写作进行中，停止后才能切换模型", "warning");
       return;
@@ -804,72 +814,88 @@ function App() {
       await configStore.load();
     }
 
-    const currentCfg = useConfigStore.getState().config;
-    let patch: Partial<AppConfig> = { engine_mode: mode };
-    if (mode === "doubao") {
-      const runtimeDoubao = runtimeModels((runtimeStatus as Record<string, unknown> | null)?.doubao_models);
-      let merged = normalizeModelList(
-        [
-          String(currentCfg.doubao_models || ""),
-          runtimeDoubao.join("\n"),
-          String(currentCfg.doubao_model || ""),
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        DOUBAO_DEFAULT_MODELS[0],
-      );
-      if (merged.length <= 1) {
-        merged = normalizeModelList(
-          [merged.join("\n"), DOUBAO_DEFAULT_MODELS.join("\n")].join("\n"),
+    setEngineSwitching(true);
+    if (engineSwitchReleaseRef.current != null) {
+      window.clearTimeout(engineSwitchReleaseRef.current);
+      engineSwitchReleaseRef.current = null;
+    }
+    try {
+      const currentCfg = useConfigStore.getState().config;
+      let patch: Partial<AppConfig> = { engine_mode: mode };
+      if (mode === "doubao") {
+        const runtimeDoubao = runtimeModels((runtimeStatus as Record<string, unknown> | null)?.doubao_models);
+        let merged = normalizeModelList(
+          [
+            String(currentCfg.doubao_models || ""),
+            runtimeDoubao.join("\n"),
+            String(currentCfg.doubao_model || ""),
+          ]
+            .filter(Boolean)
+            .join("\n"),
           DOUBAO_DEFAULT_MODELS[0],
         );
+        if (merged.length <= 1) {
+          merged = normalizeModelList(
+            [merged.join("\n"), DOUBAO_DEFAULT_MODELS.join("\n")].join("\n"),
+            DOUBAO_DEFAULT_MODELS[0],
+          );
+        }
+        const current = String(currentCfg.doubao_model || "").trim();
+        patch = {
+          ...patch,
+          doubao_models: merged.join("\n"),
+          doubao_model: (current && merged.includes(current)) ? current : (merged[0] || DOUBAO_DEFAULT_MODELS[0]),
+        };
+      } else if (mode === "personal") {
+        const runtimePersonal = runtimeModels((runtimeStatus as Record<string, unknown> | null)?.personal_models);
+        const merged = normalizeModelList(
+          String(currentCfg.personal_models || runtimePersonal.join("\n") || currentCfg.personal_model || ""),
+          "deepseek-ai/deepseek-v3.2",
+        );
+        const current = String(currentCfg.personal_model || "").trim();
+        patch = {
+          ...patch,
+          personal_models: merged.join("\n"),
+          personal_model: (current && merged.includes(current)) ? current : (merged[0] || "deepseek-ai/deepseek-v3.2"),
+        };
       }
-      const current = String(currentCfg.doubao_model || "").trim();
-      patch = {
-        ...patch,
-        doubao_models: merged.join("\n"),
-        doubao_model: (current && merged.includes(current)) ? current : (merged[0] || DOUBAO_DEFAULT_MODELS[0]),
-      };
-    } else if (mode === "personal") {
-      const runtimePersonal = runtimeModels((runtimeStatus as Record<string, unknown> | null)?.personal_models);
-      const merged = normalizeModelList(
-        String(currentCfg.personal_models || runtimePersonal.join("\n") || currentCfg.personal_model || ""),
-        "deepseek-ai/deepseek-v3.2",
-      );
-      const current = String(currentCfg.personal_model || "").trim();
-      patch = {
-        ...patch,
-        personal_models: merged.join("\n"),
-        personal_model: (current && merged.includes(current)) ? current : (merged[0] || "deepseek-ai/deepseek-v3.2"),
-      };
-    }
 
-    const nextConfig: AppConfig = {
-      ...currentCfg,
-      ...patch,
-    };
-    configStore.patch(patch);
-    setRuntimeStatus((prev) => {
-      const base = (prev || {}) as StartupStatus;
-      return {
-        ...base,
-        engine_mode: mode,
-        runtime_last_engine: mode,
-        runtime_last_model: modelForMode(nextConfig, mode),
+      const nextConfig: AppConfig = {
+        ...currentCfg,
+        ...patch,
       };
-    });
-
-    if (mode === "doubao") {
-      await runDoubaoSaveApply({
-        preferredModel: String(nextConfig.doubao_model || ""),
-        rowsText: String(nextConfig.doubao_models || ""),
-        source: "switch_engine_mode",
-        silent: true,
+      configStore.patch(patch);
+      setRuntimeStatus((prev) => {
+        const base = (prev || {}) as StartupStatus;
+        return {
+          ...base,
+          engine_mode: mode,
+          runtime_last_engine: mode,
+          runtime_last_model: modelForMode(nextConfig, mode),
+        };
       });
-    } else {
-      await handleSaveConfig({ silent: true });
+
+      if (mode === "doubao") {
+        await runDoubaoSaveApply({
+          preferredModel: String(nextConfig.doubao_model || ""),
+          rowsText: String(nextConfig.doubao_models || ""),
+          source: "switch_engine_mode",
+          silent: true,
+        });
+      } else {
+        await handleSaveConfig({ silent: true });
+      }
+      ui.addToast(`已切换模型：${modeLabel(mode)}`, "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      ui.addToast(`切换模型失败: ${message}`, "error");
+      await refreshRuntimeStatus(true);
+    } finally {
+      engineSwitchReleaseRef.current = window.setTimeout(() => {
+        setEngineSwitching(false);
+        engineSwitchReleaseRef.current = null;
+      }, 180);
     }
-    ui.addToast(`已切换模型：${modeLabel(mode)}`, "success");
   };
 
   const handleImportFile = async (target: "outline" | "reference", file: File): Promise<void> => {
@@ -1641,9 +1667,13 @@ function App() {
     });
   };
 
+  const appClassName = [ui.sidebarCollapsed ? "sidebar-collapsed" : "", engineSwitching ? "engine-switching" : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <>
-      <div id="app" className={ui.sidebarCollapsed ? "sidebar-collapsed" : ""}>
+      <div id="app" className={appClassName}>
         <Sidebar
           config={configStore.config}
           saving={configStore.saving}
@@ -1663,7 +1693,7 @@ function App() {
             sidebarCollapsed={ui.sidebarCollapsed}
             discardedVisible={discarded.visible}
             dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
-            interactionsLocked={generation.isWriting}
+            interactionsLocked={generation.isWriting || engineSwitching}
             config={configStore.config}
             status={runtimeStatus}
             statusOverride={toolbarStatusOverride}
@@ -1704,7 +1734,7 @@ function App() {
               polishLoading={draftPolishing}
               cacheEnabled={cacheEnabled}
               cacheExpanded={cacheEnabled && cacheExpanded}
-              dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
+              dynamicEffectsEnabled={ui.dynamicEffectsEnabled && !engineSwitching}
               onChange={draftStore.setContent}
               onPolish={() => void handlePolishDraft()}
               onSplitChapter={() => void handleSplitChapter()}
@@ -1736,7 +1766,7 @@ function App() {
                 && generation.stage !== "stopped"
               }
               autoScroll={generation.autoScroll}
-              dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
+              dynamicEffectsEnabled={ui.dynamicEffectsEnabled && !engineSwitching}
               onStartStop={() => void handleStartStop()}
               onPauseResume={() => void handlePauseResume()}
               onSkip={() => void handleSkipAnimation()}

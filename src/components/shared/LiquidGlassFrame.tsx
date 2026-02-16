@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import LiquidGlass from "liquid-glass-react";
 import type { CSSProperties, ReactNode } from "react";
 import { DEMO_BUTTON_PRESET, GLOBAL_LIQUID_PRESETS } from "@/config/liquidGlassPresets";
@@ -29,61 +29,32 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
     interactive = false,
   } = props;
   const liquidProfile = useUiStore((state) => state.liquidProfile);
+  const activeGlassId = useUiStore((state) => state.activeGlassId);
+  const setActiveGlassId = useUiStore((state) => state.setActiveGlassId);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const toolbarLike = className.includes("liquid-glass-toolbar-shell");
-  const [frameArea, setFrameArea] = useState(0);
-  const forceStaticByRuntime = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const params = new URLSearchParams(window.location.search);
-    const gpuMode = String(params.get("gpu_mode") || "").toLowerCase();
-    const gpuCompositing = String(params.get("gpu_compositing") || "").toLowerCase();
-    const webgl = String(params.get("webgl") || "").toLowerCase();
-    if (gpuMode === "software") return true;
-    if (gpuCompositing.includes("disabled")) return true;
-    if (webgl.includes("disabled")) return true;
-    return false;
-  }, []);
+  const isCard = className.includes("liquid-glass-card-shell");
 
-  useEffect(() => {
-    const el = frameRef.current;
-    if (!el) return;
+  // Toolbar: always use full LiquidGlass (small surface, single instance).
+  // Cards: use full LiquidGlass only when THIS card is hovered.
+  // This prevents 4+ large SVG filter pipelines (each ~150MB GPU textures)
+  // from being mounted simultaneously, which crashes the render process.
+  const frameId = id || className;
+  const useLiquidRuntime = toolbarLike || (isCard && activeGlassId === frameId);
 
-    const updateArea = () => {
-      const rect = el.getBoundingClientRect();
-      const area = Math.max(0, rect.width) * Math.max(0, rect.height);
-      setFrameArea(area);
-    };
+  const onMouseEnter = useCallback(() => {
+    if (isCard) setActiveGlassId(frameId);
+  }, [isCard, frameId, setActiveGlassId]);
 
-    updateArea();
-    const ro = new ResizeObserver(updateArea);
-    ro.observe(el);
-    window.addEventListener("resize", updateArea);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", updateArea);
-    };
-  }, []);
-
-  // Large panes are the common source of compositor instability (flicker/disappear).
-  // We keep full liquid effect for small/medium widgets and use static glass for big surfaces.
-  const staticSurface = forceStaticByRuntime || (!toolbarLike && frameArea >= 140000);
-  const reducedSurface = !toolbarLike && frameArea >= 90000;
-  const freezeMotion = forceStaticByRuntime || !dynamic || reducedSurface;
-  const useLiquidRuntime = !staticSurface;
+  const onMouseLeave = useCallback(() => {
+    if (isCard && activeGlassId === frameId) setActiveGlassId(null);
+  }, [isCard, frameId, activeGlassId, setActiveGlassId]);
 
   const profilePreset = toolbarLike ? DEMO_BUTTON_PRESET : GLOBAL_LIQUID_PRESETS[liquidProfile];
   const activePreset = useMemo(() => {
-    if (!freezeMotion) return profilePreset;
-    return {
-      ...profilePreset,
-      displacementScale: Math.max(28, Math.round(profilePreset.displacementScale * 0.64)),
-      blurAmount: Math.max(0.045, profilePreset.blurAmount),
-      saturation: Math.max(128, profilePreset.saturation),
-      aberrationIntensity: Math.max(0.85, profilePreset.aberrationIntensity * 0.56),
-      elasticity: 0,
-      mode: profilePreset.mode === "shader" ? "standard" : profilePreset.mode,
-    };
-  }, [freezeMotion, profilePreset]);
+    if (dynamic) return profilePreset;
+    return { ...profilePreset, elasticity: 0 };
+  }, [dynamic, profilePreset]);
 
   const resolvedCornerRadius = useMemo(() => {
     if (typeof cornerRadius === "number") return cornerRadius;
@@ -94,8 +65,15 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
   }, [className, cornerRadius]);
 
   return (
-    <div id={id} ref={frameRef} className={`liquid-glass-frame ${className}`.trim()} style={style}>
-      <div className={`liquid-glass-layer ${interactive ? "interactive" : ""} ${reducedSurface ? "safe-mode" : ""} ${staticSurface ? "static-mode" : ""}`.trim()} aria-hidden="true">
+    <div
+      id={id}
+      ref={frameRef}
+      className={`liquid-glass-frame ${className}`.trim()}
+      style={style}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className={`liquid-glass-layer ${interactive ? "interactive" : ""}`.trim()} aria-hidden="true">
         {useLiquidRuntime ? (
           <LiquidGlass
             className="liquid-glass-native"
@@ -108,9 +86,9 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
             cornerRadius={resolvedCornerRadius}
             padding="0px"
             overLight={overLight}
-            mouseContainer={freezeMotion ? null : frameRef}
-            globalMousePos={freezeMotion ? { x: 0, y: 0 } : undefined}
-            mouseOffset={freezeMotion ? { x: 0, y: 0 } : undefined}
+            mouseContainer={dynamic ? frameRef : null}
+            globalMousePos={dynamic ? undefined : { x: 0, y: 0 }}
+            mouseOffset={dynamic ? undefined : { x: 0, y: 0 }}
             style={{
               position: "absolute",
               width: "100%",

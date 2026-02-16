@@ -12,6 +12,15 @@
     "dev:backend": "node electron/backend-runner.cjs",
     "dev:web": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "dev:electron": "wait-on tcp:127.0.0.1:5174 && node electron/dev-runner.cjs",
+    "dev:hw": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=d3d11 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:hw:diag": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=d3d11 NNOVEL_GPU_PROFILE=compat NNOVEL_GPU_DIAG=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:hw:compat": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=d3d11 NNOVEL_GPU_PROFILE=compat concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:hw:strict": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_STRICT_HARDWARE=1 NNOVEL_ANGLE_BACKEND=d3d11 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:hw:gl": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=gl concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:hw:d3d11on12": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=d3d11on12 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:gpu:nosandbox": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_NO_SANDBOX=1 NNOVEL_GPU_DIAG=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:gpu:desktop-gl": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=gl NNOVEL_NO_SANDBOX=1 NNOVEL_GPU_DIAG=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:gpu:verbose": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_GPU_DIAG=1 NNOVEL_GPU_VERBOSE=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
     "dev:browser": "vite --host 127.0.0.1 --port 5174 --strictPort"
   },
   "dependencies": {
