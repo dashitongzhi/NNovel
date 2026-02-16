@@ -5,7 +5,7 @@
     "codex_model": "gpt-5.1-codex-mini",
     "gemini_model": "gemini-2.5-flash",
     "claude_model": "sonnet",
-    "doubao_model": "doubao-seed-1-6-251015",
+    "doubao_model": "doubao-seed-1-6-flash-250828",
     "doubao_models": "doubao-seed-1-6-251015\ndoubao-seed-1-6-lite-251015\ndoubao-seed-1-6-flash-250828",
     "codex_access_mode": "cli",
     "gemini_access_mode": "cli",
@@ -18,5 +18,5 @@
     "personal_model": "deepseek-ai/deepseek-v3.2",
     "proxy_port": "10808"
   },
-  "updated_at": "2026-02-16 15:01:20"
+  "updated_at": "2026-02-16 17:03:53"
 }

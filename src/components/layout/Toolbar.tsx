@@ -115,7 +115,20 @@ export function Toolbar(props: ToolbarProps) {
       title={p.title}
       aria-label={p.title}
       disabled={Boolean(p.disabled)}
-      onClick={p.onClick}
+      onMouseDown={(event) => {
+        if (p.disabled) return;
+        event.preventDefault();
+        event.currentTarget.dataset.fastPressed = "1";
+        p.onClick();
+      }}
+      onClick={(event) => {
+        if (p.disabled) return;
+        if (event.currentTarget.dataset.fastPressed === "1") {
+          event.currentTarget.dataset.fastPressed = "";
+          return;
+        }
+        p.onClick();
+      }}
       dangerouslySetInnerHTML={{ __html: p.icon }}
     />
   );

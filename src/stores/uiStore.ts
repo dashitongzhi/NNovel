@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { LiquidProfile } from "@/config/liquidGlassPresets";
 
 export type ToastType = "success" | "warning" | "error" | "info";
 export type ThemeMode = "light" | "dark" | "auto";
@@ -18,6 +19,7 @@ export interface InfoBoxItem {
 interface UiState {
   theme: ThemeMode;
   dynamicEffectsEnabled: boolean;
+  liquidProfile: LiquidProfile;
   toasts: ToastItem[];
   infoItems: InfoBoxItem[];
   sidebarCollapsed: boolean;
@@ -28,6 +30,7 @@ interface UiState {
   removeInfoItem: (id: number) => void;
   setTheme: (theme: ThemeMode) => void;
   setDynamicEffectsEnabled: (enabled: boolean) => void;
+  setLiquidProfile: (profile: LiquidProfile) => void;
   syncTheme: () => void;
   toggleSidebar: () => void;
 }
@@ -35,6 +38,7 @@ interface UiState {
 let nextToastId = 1;
 const THEME_KEY = "theme";
 const DYNAMIC_EFFECTS_KEY = "writer:dynamicEffectsEnabled";
+const LIQUID_PROFILE_KEY = "writer:liquidProfile";
 
 function readThemeMode(): ThemeMode {
   const raw = String(localStorage.getItem(THEME_KEY) || "auto").trim().toLowerCase();
@@ -44,8 +48,14 @@ function readThemeMode(): ThemeMode {
 
 function readDynamicEffectsEnabled(): boolean {
   const raw = localStorage.getItem(DYNAMIC_EFFECTS_KEY);
-  if (raw == null) return false;
+  if (raw == null) return true;
   return raw === "true";
+}
+
+function readLiquidProfile(): LiquidProfile {
+  const raw = String(localStorage.getItem(LIQUID_PROFILE_KEY) || "aggressive").trim().toLowerCase();
+  if (raw === "balanced" || raw === "aggressive" || raw === "experimental") return raw;
+  return "aggressive";
 }
 
 function resolvedTheme(mode: ThemeMode): "light" | "dark" {
@@ -69,6 +79,7 @@ function applyTheme(mode: ThemeMode): void {
 export const useUiStore = create<UiState>((set) => ({
   theme: readThemeMode(),
   dynamicEffectsEnabled: readDynamicEffectsEnabled(),
+  liquidProfile: readLiquidProfile(),
   toasts: [],
   infoItems: [],
   sidebarCollapsed: false,
@@ -101,6 +112,10 @@ export const useUiStore = create<UiState>((set) => ({
   setDynamicEffectsEnabled: (enabled) => {
     localStorage.setItem(DYNAMIC_EFFECTS_KEY, String(enabled));
     set({ dynamicEffectsEnabled: enabled });
+  },
+  setLiquidProfile: (profile) => {
+    localStorage.setItem(LIQUID_PROFILE_KEY, profile);
+    set({ liquidProfile: profile });
   },
   syncTheme: () => {
     const mode = useUiStore.getState().theme;

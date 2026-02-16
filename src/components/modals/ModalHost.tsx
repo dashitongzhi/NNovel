@@ -1,5 +1,4 @@
 import type { ConsistencyConflict } from "@/types/domain";
-import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 
 interface MemoryDiffItem {
   key: string;
@@ -26,7 +25,6 @@ interface ModalHostProps {
   selfCheckLoading: boolean;
   selfCheckSummary: string;
   selfCheckRows: Array<{ id: string; label: string; ok: boolean; detail?: string; required?: boolean; pending?: boolean }>;
-  dynamicEffectsEnabled: boolean;
   onRecheck: () => void;
   onCloseSelfCheck: () => void;
 }
@@ -35,7 +33,7 @@ export function ModalHost(props: ModalHostProps) {
   return (
     <>
       <div id="title-modal" className={`modal-overlay ${props.chapterTitleOpen ? "" : "hidden"}`}>
-        <LiquidGlassFrame className="modal-content title-modal-content liquid-glass-modal-shell" dynamic={props.dynamicEffectsEnabled}>
+        <div className="modal-content title-modal-content">
           <h3>章节标题确认</h3>
           <p className="modal-desc">AI 已为您生成章节标题，您可以修改或直接保存。</p>
           <input
@@ -49,11 +47,11 @@ export function ModalHost(props: ModalHostProps) {
             <button id="modal-confirm-btn" className="btn btn-success btn-lg" onClick={props.onChapterConfirm} type="button">确认保存</button>
             <button id="modal-cancel-btn" className="btn btn-danger btn-lg" onClick={props.onCloseChapterModal} type="button">取消</button>
           </div>
-        </LiquidGlassFrame>
+        </div>
       </div>
 
       <div id="memory-preview-modal" className={`modal-overlay ${props.memoryOpen ? "" : "hidden"}`}>
-        <LiquidGlassFrame className="modal-content memory-preview-content liquid-glass-modal-shell" dynamic={props.dynamicEffectsEnabled}>
+        <div className="modal-content memory-preview-content">
           <div className="modal-header">
             <h3>全局记忆更新预览</h3>
             <button className="icon-btn" type="button" onClick={props.onCloseMemory}>×</button>
@@ -86,11 +84,11 @@ export function ModalHost(props: ModalHostProps) {
           <div className="modal-actions" style={{ marginTop: 20 }}>
             <button className="btn btn-primary" type="button" onClick={props.onCloseMemory}>确认</button>
           </div>
-        </LiquidGlassFrame>
+        </div>
       </div>
 
       <div id="consistency-modal" className={`modal-overlay ${props.consistencyOpen ? "" : "hidden"}`}>
-        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={props.dynamicEffectsEnabled}>
+        <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>连贯性校验结果</h3>
             <button className="icon-btn" onClick={props.onCloseConsistency} type="button">×</button>
@@ -113,11 +111,11 @@ export function ModalHost(props: ModalHostProps) {
           <div className="modal-actions" style={{ marginTop: 16 }}>
             <button className="btn btn-primary" onClick={props.onCloseConsistency} type="button">我知道了</button>
           </div>
-        </LiquidGlassFrame>
+        </div>
       </div>
 
       <div id="self-check-modal" className={`modal-overlay ${props.selfCheckOpen ? "" : "hidden"}`}>
-        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={props.dynamicEffectsEnabled}>
+        <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>环境自检</h3>
             <button className="icon-btn settings-modal-header-icon-btn" onClick={props.onCloseSelfCheck} type="button">×</button>
@@ -153,7 +151,7 @@ export function ModalHost(props: ModalHostProps) {
             <button className="btn btn-primary" onClick={props.onRecheck} type="button">重新检测</button>
             <button className="btn btn-danger" onClick={props.onCloseSelfCheck} type="button">关闭</button>
           </div>
-        </LiquidGlassFrame>
+        </div>
       </div>
     </>
   );
