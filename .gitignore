@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+data/books/selfcheck-book/novel/chapter_002_第2章_旧表滴答声.txt
+auth.json
+data/

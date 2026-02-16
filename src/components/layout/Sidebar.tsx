@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import type { AppConfig } from "@/types/domain";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
+import { useConfigStore } from "@/stores/configStore";
 
 type ImportTarget = "outline" | "reference";
 
@@ -9,6 +11,8 @@ interface SidebarProps {
   isWriting: boolean;
   personalConfigReady: boolean;
   onPatch: (patch: Partial<AppConfig>) => void;
+  onSelectDoubaoModel: (value: string) => void;
+  onSelectPersonalModel: (value: string) => void;
   onSave: () => void;
   onStartStop: () => void;
   onOpenPersonalConfig: () => void;
@@ -25,12 +29,46 @@ function splitModels(text: string): string[] {
     .filter(Boolean);
 }
 
+function mergeUniqueModels(...groups: string[][]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  groups.forEach((rows) => {
+    rows.forEach((item) => {
+      const value = String(item || "").trim();
+      if (!value) return;
+      const key = value.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(value);
+    });
+  });
+  return result;
+}
+
+const DOUBAO_FALLBACK_MODELS = [
+  "doubao-seed-1-6-251015",
+  "doubao-seed-1-6-lite-251015",
+  "doubao-seed-1-6-flash-250828",
+];
+
 export function Sidebar(props: SidebarProps) {
-  const { config, saving, isWriting, personalConfigReady, onPatch, onSave, onStartStop, onOpenPersonalConfig, onImportFile } = props;
-  const personalModelsRaw = splitModels(config.personal_models || "");
-  const personalModels = personalModelsRaw.length ? personalModelsRaw : ["deepseek-ai/deepseek-v3.2"];
-  const doubaoModelsRaw = splitModels(config.doubao_models || "");
-  const doubaoModels = doubaoModelsRaw.length ? doubaoModelsRaw : ["doubao-seed-1-6-251015"];
+  const { config, saving, isWriting, personalConfigReady, onPatch, onSelectDoubaoModel, onSelectPersonalModel, onSave, onStartStop, onOpenPersonalConfig, onImportFile } = props;
+  const liveDoubaoModel = useConfigStore((state) => state.config.doubao_model);
+  const liveDoubaoModels = useConfigStore((state) => state.config.doubao_models);
+  const livePersonalModel = useConfigStore((state) => state.config.personal_model);
+  const livePersonalModels = useConfigStore((state) => state.config.personal_models);
+
+  const personalModels = useMemo(() => mergeUniqueModels(
+    splitModels(livePersonalModels || config.personal_models || ""),
+    [String(livePersonalModel || config.personal_model || "").trim()],
+    ["deepseek-ai/deepseek-v3.2"],
+  ), [livePersonalModels, livePersonalModel, config.personal_models, config.personal_model]);
+
+  const doubaoModels = useMemo(() => mergeUniqueModels(
+    splitModels(liveDoubaoModels || config.doubao_models || ""),
+    [String(liveDoubaoModel || config.doubao_model || "").trim()],
+    DOUBAO_FALLBACK_MODELS,
+  ), [liveDoubaoModels, liveDoubaoModel, config.doubao_models, config.doubao_model]);
 
   return (
     <aside id="config-panel" className="sidebar">
@@ -210,8 +248,8 @@ export function Sidebar(props: SidebarProps) {
         <div id="doubao-settings" className={config.engine_mode === "doubao" ? "" : "hidden"}>
           <ConfigSelect
             id="doubao-model-select"
-            value={config.doubao_model || doubaoModels[0] || ""}
-            onChange={(value) => onPatch({ doubao_model: value })}
+            value={liveDoubaoModel || config.doubao_model || doubaoModels[0] || ""}
+            onChange={onSelectDoubaoModel}
             options={doubaoModels.map((m) => ({ value: m, label: m }))}
           />
           <ConfigSelect
@@ -230,8 +268,8 @@ export function Sidebar(props: SidebarProps) {
         <div id="personal-settings" className={config.engine_mode === "personal" ? "" : "hidden"}>
           <ConfigSelect
             id="personal-model-select"
-            value={config.personal_model || personalModels[0] || ""}
-            onChange={(value) => onPatch({ personal_model: value })}
+            value={livePersonalModel || config.personal_model || personalModels[0] || ""}
+            onChange={onSelectPersonalModel}
             options={personalModels.map((m) => ({ value: m, label: m }))}
           />
           <button id="personal-config-btn" className="btn btn-primary btn-sm" type="button" onClick={onOpenPersonalConfig}>

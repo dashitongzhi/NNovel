@@ -11,6 +11,7 @@ import {
 } from "@/services/endpoints/generation";
 import type { AppConfig, GenerationTaskState } from "@/types/domain";
 import { useUiStore } from "@/stores/uiStore";
+import { useConfigStore } from "@/stores/configStore";
 
 interface StageDurations {
   queued: number;
@@ -75,6 +76,24 @@ function stripPauseMarkerPrefix(text: string): string {
   return String(text || "")
     .replace(/^\s*已暂停(?:\.{3}|…)?\s*/u, "")
     .replace(/^\s*临时暂停快照[:：]?\s*/u, "");
+}
+
+function stripGeminiThinkingOutput(text: string): string {
+  let out = String(text || "");
+  out = out.replace(/```(?:thinking|reasoning|thoughts?|思考|推理)[\s\S]*?```/gi, "");
+  out = out.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  out = out.replace(/<thought>[\s\S]*?<\/thought>/gi, "");
+  out = out.replace(/^\s*(?:thought|thoughts|reasoning|thinking|思考|推理过程|思维链|chain[\s-]*of[\s-]*thought)\s*[:：].*$/gimu, "");
+  out = out.replace(/^\s*[【\[]?(?:思考|推理|thinking|reasoning)[】\]]?\s*[:：].*$/gimu, "");
+  return out.trimStart();
+}
+
+function normalizeGeneratedByEngine(text: string): string {
+  const mode = String(useConfigStore.getState().config.engine_mode || "").toLowerCase();
+  if (mode === "gemini") {
+    return stripGeminiThinkingOutput(text);
+  }
+  return text;
 }
 
 function readTypewriterEnabled(): boolean {
@@ -310,7 +329,7 @@ async function poll(taskId: string): Promise<void> {
     if (result.state === "done") {
       stopPolling();
       setStage("finishing");
-      const finalText = stripPauseMarkerPrefix(String(result.content || ""));
+      const finalText = normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(result.content || "")));
       if (newest.typewriterEnabled) {
         queueStreamingPreview(finalText, true);
       } else {
@@ -363,7 +382,7 @@ async function poll(taskId: string): Promise<void> {
     }
 
     const thinking = String(result.thinking || "AI 正在构思...");
-    const partial = stripPauseMarkerPrefix(String(result.partial_content || ""));
+    const partial = normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(result.partial_content || "")));
 
     if (partial && partial === pollingLastPartial) {
       pollingNoChangeRounds += 1;
@@ -654,7 +673,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
           stage: "generating",
           taskId: normalized.task_id,
           requestId: normalized.request_id || "",
-          generatedText: stripPauseMarkerPrefix(String(normalized.partial_content || "")),
+          generatedText: normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(normalized.partial_content || ""))),
           thinking: normalized.thinking || "AI 正在创作...",
           pollingStartedAt: Date.now(),
           stageDurations: defaultDurations(),
@@ -664,7 +683,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         await poll(normalized.task_id);
       } else if (normalized.partial_content) {
         set({
-          generatedText: stripPauseMarkerPrefix(String(normalized.partial_content || "")),
+          generatedText: normalizeGeneratedByEngine(stripPauseMarkerPrefix(String(normalized.partial_content || ""))),
           thinking: "检测到中断任务，可继续",
           stage: "paused",
           isWriting: false,
@@ -681,17 +700,38 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   resumeRecovery: async () => {
+    stopPolling();
+    resetStreamingState();
+    pollingNoChangeRounds = 0;
+    pollingLastPartial = "";
+    set({
+      isWriting: true,
+      isPaused: false,
+      stage: "queued",
+      taskId: "",
+      requestId: "",
+      thinking: "AI 正在恢复任务...",
+      generatedText: "",
+      pollingStartedAt: Date.now(),
+      stageDurations: defaultDurations(),
+      stageSince: Date.now(),
+      skipVisible: false,
+    });
     try {
       const payload = await resumeGenerate();
       const taskId = String(payload.task_id || "");
       if (!payload.ok || !taskId) {
+        set({
+          isWriting: false,
+          isPaused: false,
+          stage: "idle",
+          taskId: "",
+          requestId: payload.request_id || "",
+          thinking: "就绪",
+          skipVisible: false,
+        });
         return false;
       }
-
-      stopPolling();
-      resetStreamingState();
-      pollingNoChangeRounds = 0;
-      pollingLastPartial = "";
 
       set({
         isWriting: true,
@@ -708,6 +748,15 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       await poll(taskId);
       return true;
     } catch {
+      set({
+        isWriting: false,
+        isPaused: false,
+        stage: "idle",
+        taskId: "",
+        requestId: "",
+        thinking: "就绪",
+        skipVisible: false,
+      });
       return false;
     }
   },

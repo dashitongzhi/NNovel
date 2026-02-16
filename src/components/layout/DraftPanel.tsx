@@ -12,7 +12,6 @@ interface DraftPanelProps {
 }
 
 const DRAFT_ACTION_ICONS = {
-  save: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.6 2h8.2l2.6 2.6v8.8a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6zm1.8 0v3.9h6.6V2zm0 6.1v5h6.6v-5z"/></svg>',
   wand: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6.2 2.1l.8 1.7 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8zM11.1 5.6l.5 1.1 1.1.5-1.1.5-.5 1.1-.5-1.1-1.1-.5 1.1-.5zM3.9 10.3l5.9-5.9a1 1 0 0 1 1.4 1.4l-5.9 5.9H2.5v-2.8z"/></svg>',
   loading: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="8" cy="8" r="5.3" strokeOpacity="0.3"></circle><path d="M13.3 8A5.3 5.3 0 0 0 8 2.7"></path></svg>',
 };
@@ -48,18 +47,14 @@ export function DraftPanel(props: DraftPanelProps) {
             </button>
             <button
               id="split-chapter-btn"
-              className={`btn btn-sm btn-warning writer-icon-btn ${splitBusy ? "loading" : ""}`}
+              className={`btn btn-sm btn-warning draft-split-btn ${splitBusy ? "is-busy" : ""}`}
               onClick={props.onSplitChapter}
               type="button"
               disabled={actionDisabled}
-              title={props.saveLoading ? "保存中..." : props.splitLoading ? "生成标题中..." : "分章保存"}
-              aria-label={props.saveLoading ? "保存中..." : props.splitLoading ? "生成标题中..." : "分章保存"}
+              title={splitBusy ? "保存中..." : "分章保存"}
+              aria-label={splitBusy ? "保存中..." : "分章保存"}
             >
-              <span
-                className="btn-icon-text"
-                aria-hidden="true"
-                dangerouslySetInnerHTML={{ __html: splitBusy ? DRAFT_ACTION_ICONS.loading : DRAFT_ACTION_ICONS.save }}
-              />
+              {splitBusy ? "保存中..." : "分章保存"}
             </button>
           </div>
         </div>

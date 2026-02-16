@@ -20,6 +20,7 @@ interface UiState {
   toasts: ToastItem[];
   infoItems: InfoBoxItem[];
   sidebarCollapsed: boolean;
+  addInfo: (message: string) => void;
   addToast: (message: string, type?: ToastType) => void;
   removeToast: (id: number) => void;
   clearInfoItems: () => void;
@@ -61,6 +62,12 @@ export const useUiStore = create<UiState>((set) => ({
   toasts: [],
   infoItems: [],
   sidebarCollapsed: false,
+  addInfo: (message) => {
+    const id = nextToastId++;
+    set((state) => ({
+      infoItems: [...state.infoItems, { id, message, createdAt: Date.now() }],
+    }));
+  },
   addToast: (message, type = "success") => {
     const id = nextToastId++;
     set((state) => ({

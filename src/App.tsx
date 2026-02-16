@@ -16,6 +16,7 @@ import { useUiStore, type ThemeMode } from "@/stores/uiStore";
 import { diffMemory } from "@/utils/memory";
 import { generateChapterTitle, saveChapter } from "@/services/endpoints/chapter";
 import { generateOutline } from "@/services/endpoints/outline";
+import { polishDraft } from "@/services/endpoints/polish";
 import { getBooks, createBook, switchBook } from "@/services/endpoints/books";
 import { listChapters, getChapter, deleteChapter, type ChapterItem } from "@/services/endpoints/chapters";
 import { uploadTxt } from "@/services/endpoints/upload";
@@ -61,6 +62,11 @@ function modelForMode(config: AppConfig, mode: AppConfig["engine_mode"]): string
 const CACHE_BOX_ENABLED_KEY = "writer:cacheBoxEnabled";
 const CACHE_BOX_EXPANDED_KEY = "writer:cacheBoxExpanded";
 const STAGE_TIMELINE_ENABLED_KEY = "writer:stageTimelineEnabled";
+const DOUBAO_DEFAULT_MODELS = [
+  "doubao-seed-1-6-251015",
+  "doubao-seed-1-6-lite-251015",
+  "doubao-seed-1-6-flash-250828",
+];
 
 interface OutlineFormState {
   overall_flow: string;
@@ -83,6 +89,27 @@ interface SelfCheckRowView {
   ok: boolean;
   detail: string;
   required: boolean;
+  pending?: boolean;
+}
+
+function buildSelfCheckTemplate(config: AppConfig): Array<Pick<SelfCheckRowView, "id" | "label">> {
+  const rows: Array<Pick<SelfCheckRowView, "id" | "label">> = [];
+  const codexApi = config.codex_access_mode === "api";
+  const geminiApi = config.gemini_access_mode === "api";
+  const claudeApi = config.claude_access_mode === "api";
+
+  rows.push(codexApi ? { id: "key_codex_api", label: "ChatGPT API Key" } : { id: "cli_codex", label: "ChatGPT CLI" });
+  rows.push(geminiApi ? { id: "key_gemini_api", label: "Gemini API Key" } : { id: "cli_gemini", label: "Gemini CLI" });
+  rows.push(claudeApi ? { id: "key_claude_api", label: "Claude API Key" } : { id: "cli_claude", label: "Claude CLI" });
+
+  if (!codexApi || !geminiApi || !claudeApi) {
+    rows.push({ id: "proxy_port", label: "代理端口" });
+  }
+
+  rows.push({ id: "key_doubao", label: "豆包 API Key" });
+  rows.push({ id: "key_personal", label: "个人配置 API Key" });
+  rows.push({ id: "url_personal", label: "个人配置 Base URL" });
+  return rows;
 }
 
 type ModelListPrefix = "personal" | "doubao";
@@ -181,6 +208,13 @@ function normalizeModelList(value: string, fallback = ""): string[] {
   return list;
 }
 
+function runtimeModels(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+  return normalizeModelList(String(raw || ""));
+}
+
 function seedModelEditorRows(value: string, fallback: string): string[] {
   const rows = normalizeModelList(value, fallback);
   return rows.length ? rows : [fallback];
@@ -274,6 +308,8 @@ function App() {
   const [chapterTitleGenerating, setChapterTitleGenerating] = useState(false);
   const [chapterSaving, setChapterSaving] = useState(false);
   const [draftPolishing, setDraftPolishing] = useState(false);
+  const [polishModalOpen, setPolishModalOpen] = useState(false);
+  const [polishRequirements, setPolishRequirements] = useState("");
 
   const [consistencyOpen, setConsistencyOpen] = useState(false);
   const [consistencySummary, setConsistencySummary] = useState("");
@@ -309,6 +345,15 @@ function App() {
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [chaptersLoading, setChaptersLoading] = useState(false);
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
+  const [chapterPreviewOpen, setChapterPreviewOpen] = useState(false);
+  const [chapterPreviewLoading, setChapterPreviewLoading] = useState(false);
+  const [chapterPreviewItem, setChapterPreviewItem] = useState<{
+    id: number;
+    title: string;
+    content: string;
+    charCount: number;
+    createdAt: string;
+  } | null>(null);
 
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
@@ -635,42 +680,50 @@ function App() {
   }, [generation.stage, generation.generatedText]);
 
   const personalConfigReady = useMemo(() => {
-    const localReady = Boolean(
+    return Boolean(
       String(configStore.config.personal_base_url || "").trim()
       && String(configStore.config.personal_api_key || "").trim()
       && hasPersonalModel,
     );
-    if (!runtimeStatus) return localReady;
-    if (runtimeStatus.personal_ready === false) return false;
-    if (runtimeStatus.personal_ready === true) return true;
-    return localReady;
-  }, [runtimeStatus, configStore.config.personal_base_url, configStore.config.personal_api_key, hasPersonalModel]);
+  }, [configStore.config.personal_base_url, configStore.config.personal_api_key, hasPersonalModel]);
 
-  const handleStartStop = async (): Promise<void> => {
-    if (generation.isWriting) {
-      await generation.stop();
+  const handleStartStop = (): void => {
+    if (useGenerationStore.getState().isWriting) {
+      void generation.stop();
       return;
     }
-    try {
-      const chapters = await listChapters();
-      const chapterCount = Array.isArray(chapters) ? chapters.length : 0;
-      const hasCache = Boolean(String(configStore.config.cache || "").trim());
-      generation.setReferenceStatus(chapterCount > 0 || hasCache ? "已加载提要" : "首次创作");
-    } catch {
-      generation.setReferenceStatus("");
+
+    const hasCache = Boolean(String(useConfigStore.getState().config.cache || "").trim());
+    generation.setReferenceStatus(hasCache ? "已加载提要" : "首次创作");
+
+    const recovery = useGenerationStore.getState().recoveryInfo;
+    if (recovery?.recoverable) {
+      void (async () => {
+        const resumed = await generation.resumeRecovery();
+        if (resumed) {
+          ui.addToast("已从中断点恢复写作", "success");
+          return;
+        }
+        await generation.start(useConfigStore.getState().config);
+      })();
+      return;
     }
-    if (generation.recoveryInfo?.recoverable) {
-      const resumed = await generation.resumeRecovery();
-      if (resumed) {
-        ui.addToast("已从中断点恢复写作", "success");
-        return;
+
+    void generation.start(useConfigStore.getState().config);
+    void (async () => {
+      try {
+        const chapters = await listChapters();
+        const chapterCount = Array.isArray(chapters) ? chapters.length : 0;
+        const freshHasCache = Boolean(String(useConfigStore.getState().config.cache || "").trim());
+        generation.setReferenceStatus(chapterCount > 0 || freshHasCache ? "已加载提要" : "首次创作");
+      } catch {
+        // ignore chapter check failure; keep optimistic front-end response
       }
-    }
-    await generation.start(configStore.config);
+    })();
   };
 
-  const handleSaveConfig = async (): Promise<void> => {
-    await configStore.save();
+  const handleSaveConfig = async (opts?: { silent?: boolean }): Promise<void> => {
+    await configStore.save({ silent: Boolean(opts?.silent) });
     try {
       await saveProxyPort(configStore.config.proxy_port || "10808");
     } catch {
@@ -679,17 +732,90 @@ function App() {
     await refreshRuntimeStatus(true);
   };
 
+  const runDoubaoSaveApply = async (opts?: {
+    preferredModel?: string;
+    rowsText?: string;
+    source?: string;
+    silent?: boolean;
+  }): Promise<void> => {
+    const current = useConfigStore.getState().config;
+    const normalized = normalizeModelList(
+      String(opts?.rowsText || current.doubao_models || ""),
+      "doubao-seed-1-6-251015",
+    );
+    if (!normalized.length) return;
+    const requested = String(opts?.preferredModel || current.doubao_model || "").trim();
+    const selected = requested && normalized.includes(requested) ? requested : (normalized[0] || "");
+    updateDoubaoModels(normalized, selected);
+    setDoubaoModelEditorRows(normalized);
+    if (opts?.silent) {
+      await configStore.saveQuietly();
+      try {
+        await saveProxyPort(useConfigStore.getState().config.proxy_port || "10808");
+      } catch {
+        // ignore proxy sync failure here
+      }
+      await refreshRuntimeStatus(true);
+      return;
+    }
+    await handleSaveConfig({ silent: false });
+  };
+
   const switchEngineMode = async (mode: AppConfig["engine_mode"]): Promise<void> => {
     if (generation.isWriting) {
       ui.addToast("写作进行中，停止后才能切换模型", "warning");
       return;
     }
 
+    if (configStore.loading) {
+      await configStore.load();
+    }
+
+    const currentCfg = useConfigStore.getState().config;
+    let patch: Partial<AppConfig> = { engine_mode: mode };
+    if (mode === "doubao") {
+      const runtimeDoubao = runtimeModels((runtimeStatus as Record<string, unknown> | null)?.doubao_models);
+      let merged = normalizeModelList(
+        [
+          String(currentCfg.doubao_models || ""),
+          runtimeDoubao.join("\n"),
+          String(currentCfg.doubao_model || ""),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        DOUBAO_DEFAULT_MODELS[0],
+      );
+      if (merged.length <= 1) {
+        merged = normalizeModelList(
+          [merged.join("\n"), DOUBAO_DEFAULT_MODELS.join("\n")].join("\n"),
+          DOUBAO_DEFAULT_MODELS[0],
+        );
+      }
+      const current = String(currentCfg.doubao_model || "").trim();
+      patch = {
+        ...patch,
+        doubao_models: merged.join("\n"),
+        doubao_model: (current && merged.includes(current)) ? current : (merged[0] || DOUBAO_DEFAULT_MODELS[0]),
+      };
+    } else if (mode === "personal") {
+      const runtimePersonal = runtimeModels((runtimeStatus as Record<string, unknown> | null)?.personal_models);
+      const merged = normalizeModelList(
+        String(currentCfg.personal_models || runtimePersonal.join("\n") || currentCfg.personal_model || ""),
+        "deepseek-ai/deepseek-v3.2",
+      );
+      const current = String(currentCfg.personal_model || "").trim();
+      patch = {
+        ...patch,
+        personal_models: merged.join("\n"),
+        personal_model: (current && merged.includes(current)) ? current : (merged[0] || "deepseek-ai/deepseek-v3.2"),
+      };
+    }
+
     const nextConfig: AppConfig = {
-      ...configStore.config,
-      engine_mode: mode,
+      ...currentCfg,
+      ...patch,
     };
-    configStore.patch({ engine_mode: mode });
+    configStore.patch(patch);
     setRuntimeStatus((prev) => {
       const base = (prev || {}) as StartupStatus;
       return {
@@ -700,7 +826,16 @@ function App() {
       };
     });
 
-    await handleSaveConfig();
+    if (mode === "doubao") {
+      await runDoubaoSaveApply({
+        preferredModel: String(nextConfig.doubao_model || ""),
+        rowsText: String(nextConfig.doubao_models || ""),
+        source: "switch_engine_mode",
+        silent: true,
+      });
+    } else {
+      await handleSaveConfig({ silent: true });
+    }
     ui.addToast(`已切换模型：${modeLabel(mode)}`, "success");
   };
 
@@ -721,20 +856,90 @@ function App() {
 
   const updatePersonalModels = (rows: string[], preferred = ""): void => {
     const normalized = normalizeModelList(rows.join("\n"), "deepseek-ai/deepseek-v3.2");
-    const current = preferred.trim() || normalized[0] || "";
-    configStore.patch({
+    const current = String(preferred || "").trim();
+    const selected = (current && normalized.includes(current)) ? current : (normalized[0] || "");
+    useConfigStore.getState().patch({
       personal_models: normalized.join("\n"),
-      personal_model: normalized.includes(current) ? current : (normalized[0] || ""),
+      personal_model: selected,
     });
   };
 
   const updateDoubaoModels = (rows: string[], preferred = ""): void => {
     const normalized = normalizeModelList(rows.join("\n"), "doubao-seed-1-6-251015");
-    const current = preferred.trim() || normalized[0] || "";
-    configStore.patch({
+    const current = String(preferred || "").trim();
+    const selected = (current && normalized.includes(current)) ? current : (normalized[0] || "");
+    useConfigStore.getState().patch({
       doubao_models: normalized.join("\n"),
-      doubao_model: normalized.includes(current) ? current : (normalized[0] || ""),
+      doubao_model: selected,
     });
+  };
+
+  const applySelectedDoubaoModel = (value: string): void => {
+    const selected = String(value || "").trim();
+    if (!selected) return;
+    const previous = String(useConfigStore.getState().config.doubao_model || "").trim();
+    if (selected === previous) return;
+    const current = useConfigStore.getState().config;
+    const merged = normalizeModelList(
+      [String(current.doubao_models || ""), selected].filter(Boolean).join("\n"),
+      selected,
+    );
+    useConfigStore.getState().patch({
+      doubao_models: merged.join("\n"),
+      doubao_model: selected,
+    });
+    setRuntimeStatus((prev) => {
+      const base = (prev || {}) as StartupStatus;
+      return {
+        ...base,
+        doubao_model: selected,
+        runtime_last_engine: "doubao",
+        runtime_last_model: selected,
+      };
+    });
+    void runDoubaoSaveApply({
+      preferredModel: selected,
+      rowsText: merged.join("\n"),
+      source: "sidebar_doubao_model_select",
+      silent: true,
+    });
+  };
+
+  const applySelectedPersonalModel = (value: string): void => {
+    const selected = String(value || "").trim();
+    if (!selected) return;
+    const previous = String(useConfigStore.getState().config.personal_model || "").trim();
+    if (selected === previous) return;
+    const current = useConfigStore.getState().config;
+    const merged = normalizeModelList(
+      [String(current.personal_models || ""), selected].filter(Boolean).join("\n"),
+      selected,
+    );
+    useConfigStore.getState().patch({
+      personal_models: merged.join("\n"),
+      personal_model: selected,
+    });
+    setRuntimeStatus((prev) => {
+      const base = (prev || {}) as StartupStatus;
+      return {
+        ...base,
+        personal_model: selected,
+        runtime_last_engine: "personal",
+        runtime_last_model: selected,
+      };
+    });
+    void handleSaveConfig({ silent: true });
+  };
+
+  const handleSidebarPatch = (patch: Partial<AppConfig>): void => {
+    const nextPatch = { ...patch };
+    if (typeof nextPatch.doubao_model === "string") {
+      nextPatch.doubao_model = String(nextPatch.doubao_model || "").trim();
+    }
+    if (typeof nextPatch.personal_model === "string") {
+      nextPatch.personal_model = String(nextPatch.personal_model || "").trim();
+    }
+    configStore.patch(nextPatch);
   };
 
   const closeBookshelfModal = (): void => {
@@ -806,11 +1011,39 @@ function App() {
       ui.addToast("草稿为空，无法润色", "warning");
       return;
     }
+    setPolishRequirements((prev) => prev || "在不改变核心剧情事实的前提下，优化文笔、节奏和段落层次。");
+    setPolishModalOpen(true);
+  };
+
+  const submitPolishDraft = async (): Promise<void> => {
+    if (draftPolishing) return;
+    const content = String(draftStore.content || "").trim();
+    if (!content) {
+      ui.addToast("草稿为空，无法润色", "warning");
+      return;
+    }
+    const requirementsText = String(polishRequirements || "").trim();
     setDraftPolishing(true);
-    window.setTimeout(() => {
+    try {
+      const payload = await polishDraft({
+        ...useConfigStore.getState().config,
+        content,
+        polish_requirements: requirementsText,
+      });
+      const polished = String(payload.content || "").trim();
+      if (!polished) {
+        throw new Error("润色结果为空");
+      }
+      draftStore.setContent(polished);
+      await draftStore.saveNow();
+      setPolishModalOpen(false);
+      ui.addToast("润色完成", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "润色失败";
+      ui.addToast(`润色失败: ${message}`, "error");
+    } finally {
       setDraftPolishing(false);
-      ui.addToast("润色按钮已添加，后续可接入专用润色链路", "info");
-    }, 380);
+    }
   };
 
   const handleConfirmChapterSave = async (): Promise<void> => {
@@ -884,8 +1117,13 @@ function App() {
       ui.addToast("请至少配置一个模型 ID", "error");
       return;
     }
-    updateDoubaoModels(normalized, configStore.config.doubao_model || "");
-    await handleSaveConfig();
+    updateDoubaoModels(normalized, normalized[0] || "");
+    await runDoubaoSaveApply({
+      preferredModel: String(configStore.config.doubao_model || normalized[0] || ""),
+      rowsText: normalized.join("\n"),
+      source: "system_settings_doubao_save",
+      silent: false,
+    });
     setDoubaoSettingsOpen(false);
   };
 
@@ -897,7 +1135,7 @@ function App() {
       ui.addToast("请填写模型 ID、base url 与 api key", "error");
       return;
     }
-    updatePersonalModels(normalized, configStore.config.personal_model || "");
+    updatePersonalModels(normalized, normalized[0] || "");
     await handleSaveConfig();
     setPersonalConfigOpen(false);
   };
@@ -1053,16 +1291,47 @@ function App() {
     await reloadChapters();
   };
 
+  const openChapterPreview = async (chapter: ChapterItem): Promise<void> => {
+    setChapterPreviewOpen(true);
+    setChapterPreviewLoading(true);
+    try {
+      const payload = await getChapter(chapter.id);
+      const content = String(payload.content || "");
+      setChapterPreviewItem({
+        id: chapter.id,
+        title: String(payload.title || chapter.title || "未命名章节"),
+        content,
+        charCount: Number(chapter.char_count || content.length || 0),
+        createdAt: String(chapter.created_at || ""),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "读取章节失败";
+      ui.addToast(`读取章节失败: ${message}`, "error");
+      setChapterPreviewOpen(false);
+    } finally {
+      setChapterPreviewLoading(false);
+    }
+  };
+
   const openChapterIntoDraft = async (chapterId: number): Promise<void> => {
     try {
       const payload = await getChapter(chapterId);
       draftStore.setContent(String(payload.content || ""));
       setChaptersOpen(false);
+      setChapterPreviewOpen(false);
       ui.addToast("章节内容已载入草稿箱", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "读取章节失败";
       ui.addToast(`读取章节失败: ${message}`, "error");
     }
+  };
+
+  const loadPreviewIntoDraft = (): void => {
+    if (!chapterPreviewItem) return;
+    draftStore.setContent(String(chapterPreviewItem.content || ""));
+    setChapterPreviewOpen(false);
+    setChaptersOpen(false);
+    ui.addToast("章节内容已载入草稿箱", "success");
   };
 
   const deleteChapterItem = async (chapterId: number): Promise<void> => {
@@ -1233,21 +1502,19 @@ function App() {
     const row = modelContextRowRef.current;
     if (!row || row.index <= 0) return;
     if (row.prefix === "doubao") {
-      setDoubaoModelEditorRows((prev) => {
-        if (row.index >= prev.length) return prev;
-        const next = [...prev];
-        const [picked] = next.splice(row.index, 1);
-        next.unshift(picked);
-        return next;
-      });
+      if (row.index >= doubaoModelEditorRows.length) return;
+      const next = [...doubaoModelEditorRows];
+      const [picked] = next.splice(row.index, 1);
+      next.unshift(picked);
+      setDoubaoModelEditorRows(next);
+      updateDoubaoModels(next, next[0] || picked || "");
     } else {
-      setPersonalModelEditorRows((prev) => {
-        if (row.index >= prev.length) return prev;
-        const next = [...prev];
-        const [picked] = next.splice(row.index, 1);
-        next.unshift(picked);
-        return next;
-      });
+      if (row.index >= personalModelEditorRows.length) return;
+      const next = [...personalModelEditorRows];
+      const [picked] = next.splice(row.index, 1);
+      next.unshift(picked);
+      setPersonalModelEditorRows(next);
+      updatePersonalModels(next, next[0] || picked || "");
     }
     ui.addToast("已设为置顶模型（默认）", "success");
   };
@@ -1264,15 +1531,25 @@ function App() {
   };
 
   const runSelfCheck = async (auto = false): Promise<void> => {
+    const template = buildSelfCheckTemplate(configStore.config);
     if (!auto) setSelfCheckOpen(true);
     setSelfCheckLoading(true);
     setSelfCheckSummary("正在检测环境，请稍候...");
-    setSelfCheckRows([]);
+    setSelfCheckRows(
+      template.map((item) => ({
+        id: item.id,
+        label: item.label,
+        ok: false,
+        detail: "检测中...",
+        required: false,
+        pending: true,
+      })),
+    );
     try {
       const payload = await getSelfCheck();
       const checks = Array.isArray(payload.checks) ? payload.checks : [];
       const requiredSet = new Set(Array.isArray(payload.required_ids) ? payload.required_ids.map((x) => String(x || "")) : []);
-      const rows: SelfCheckRowView[] = checks.map((item) => {
+      const rowsFromPayload: SelfCheckRowView[] = checks.map((item) => {
         const id = String(item.id || "");
         return {
           id,
@@ -1280,7 +1557,24 @@ function App() {
           ok: Boolean(item.ok),
           detail: String(item.detail || ""),
           required: requiredSet.has(id),
+          pending: false,
         };
+      });
+      const payloadById = new Map(rowsFromPayload.map((row) => [row.id, row]));
+      const rows: SelfCheckRowView[] = template.map((base) => {
+        const hit = payloadById.get(base.id);
+        if (hit) return hit;
+        return {
+          id: base.id,
+          label: base.label,
+          ok: false,
+          detail: "当前引擎未启用该检查项",
+          required: false,
+          pending: false,
+        };
+      });
+      rowsFromPayload.forEach((row) => {
+        if (!rows.find((x) => x.id === row.id)) rows.push(row);
       });
       setSelfCheckRows(rows);
       const requiredFailed = rows.filter((x) => x.required && !x.ok).length;
@@ -1293,7 +1587,7 @@ function App() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "自检失败";
-      setSelfCheckRows([{ id: "self_check_api", label: "自检接口", ok: false, detail: message, required: true }]);
+      setSelfCheckRows([{ id: "self_check_api", label: "自检接口", ok: false, detail: message, required: true, pending: false }]);
       setSelfCheckSummary(`环境自检失败：${message}`);
       if (!auto) ui.addToast(`环境自检失败: ${message}`, "error");
     } finally {
@@ -1322,7 +1616,9 @@ function App() {
           saving={configStore.saving}
           isWriting={generation.isWriting}
           personalConfigReady={personalConfigReady}
-          onPatch={configStore.patch}
+          onPatch={handleSidebarPatch}
+          onSelectDoubaoModel={applySelectedDoubaoModel}
+          onSelectPersonalModel={applySelectedPersonalModel}
           onSave={() => void handleSaveConfig()}
           onStartStop={() => void handleStartStop()}
           onOpenPersonalConfig={openPersonalConfigModal}
@@ -1669,7 +1965,7 @@ function App() {
                 <div className="settings-control">
                   <ConfigSelect
                     value={configStore.config.doubao_model || doubaoModalModelRows[0] || ""}
-                    onChange={(value) => configStore.patch({ doubao_model: value })}
+                    onChange={(value) => applySelectedDoubaoModel(value)}
                     options={doubaoModalModelRows.map((x) => ({ value: x, label: x }))}
                   />
                 </div>
@@ -1718,7 +2014,7 @@ function App() {
                 <div className="settings-control">
                   <ConfigSelect
                     value={configStore.config.personal_model || personalModalModelRows[0] || ""}
-                    onChange={(value) => configStore.patch({ personal_model: value })}
+                    onChange={(value) => applySelectedPersonalModel(value)}
                     options={personalModalModelRows.map((x) => ({ value: x, label: x }))}
                   />
                 </div>
@@ -1845,7 +2141,7 @@ function App() {
       <div id="chapter-manager-modal" className={`modal-overlay ${chaptersOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setChaptersOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <div className="modal-content consistency-modal-content chapter-manager-content">
           <div className="modal-header">
             <h3>章节管理</h3>
             <button className="icon-btn" type="button" onClick={() => setChaptersOpen(false)}>×</button>
@@ -1860,16 +2156,80 @@ function App() {
               <div className="consistency-item">暂无章节</div>
             ) : (
               chapters.map((chapter) => (
-                <div key={chapter.id} className="consistency-item">
+                <div key={chapter.id} className="consistency-item chapter-item-card">
                   <div className="consistency-head">#{chapter.id} · {chapter.title || "未命名章节"}</div>
                   <div className="consistency-line">{chapter.created_at || ""} · {chapter.char_count || 0}字</div>
-                  <div className="modal-actions" style={{ marginTop: 10 }}>
+                  <div className="modal-actions chapter-item-actions" style={{ marginTop: 10 }}>
+                    <button className="btn btn-warning" type="button" onClick={() => void openChapterPreview(chapter)}>打开预览</button>
                     <button className="btn btn-primary" type="button" onClick={() => void openChapterIntoDraft(chapter.id)}>载入草稿箱</button>
                     <button className="btn btn-danger" type="button" onClick={() => void deleteChapterItem(chapter.id)}>删除</button>
                   </div>
                 </div>
               ))
             )}
+          </div>
+        </div>
+      </div>
+
+      <div id="chapter-preview-modal" className={`modal-overlay ${chapterPreviewOpen ? "" : "hidden"}`} onClick={(e) => {
+        if (e.target === e.currentTarget) setChapterPreviewOpen(false);
+      }}>
+        <div className="modal-content chapter-preview-modal-content">
+          <div className="modal-header">
+            <h3>{chapterPreviewItem?.title || "章节预览"}</h3>
+            <button className="icon-btn" type="button" onClick={() => setChapterPreviewOpen(false)}>×</button>
+          </div>
+          <div className="chapter-preview-meta">
+            <span>章节ID：{chapterPreviewItem?.id || "-"}</span>
+            <span>字数：{chapterPreviewItem?.charCount || 0}</span>
+            <span>保存时间：{chapterPreviewItem?.createdAt || "-"}</span>
+          </div>
+          <div className="chapter-preview-body">
+            {chapterPreviewLoading ? (
+              <div className="thinking-container">
+                <div className="thinking-spinner" />
+                <div className="thinking-text">正在加载章节内容...</div>
+              </div>
+            ) : (
+              <article className="chapter-preview-paper">
+                <pre className="chapter-preview-text">{chapterPreviewItem?.content || "暂无内容"}</pre>
+              </article>
+            )}
+          </div>
+          <div className="modal-actions">
+            <button className="btn btn-primary" type="button" onClick={loadPreviewIntoDraft} disabled={chapterPreviewLoading || !chapterPreviewItem}>载入草稿箱</button>
+            <button className="btn btn-danger" type="button" onClick={() => setChapterPreviewOpen(false)}>关闭</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="polish-modal" className={`modal-overlay ${polishModalOpen ? "" : "hidden"}`} onClick={(e) => {
+        if (e.target === e.currentTarget && !draftPolishing) setPolishModalOpen(false);
+      }}>
+        <div className="modal-content polish-modal-content">
+          <div className="modal-header">
+            <h3>润色草稿</h3>
+            <button className="icon-btn" type="button" onClick={() => setPolishModalOpen(false)} disabled={draftPolishing}>×</button>
+          </div>
+          <p className="consistency-summary">
+            当前引擎：
+            <span className="polish-engine-chip">{modeLabel(configStore.config.engine_mode)}</span>
+            模型：{modelForMode(configStore.config, configStore.config.engine_mode) || "-"}
+          </p>
+          <label className="outline-label" htmlFor="polish-requirements-input">润色要求</label>
+          <textarea
+            id="polish-requirements-input"
+            className="outline-input polish-requirements-input"
+            value={polishRequirements}
+            onChange={(e) => setPolishRequirements(e.target.value)}
+            placeholder="例如：保持剧情不变，增强画面感；对话更自然；压缩冗余描述。"
+            disabled={draftPolishing}
+          />
+          <div className="modal-actions" style={{ marginTop: 16 }}>
+            <button className="btn btn-primary" type="button" onClick={() => void submitPolishDraft()} disabled={draftPolishing}>
+              {draftPolishing ? "润色中..." : "开始润色"}
+            </button>
+            <button className="btn btn-danger" type="button" onClick={() => setPolishModalOpen(false)} disabled={draftPolishing}>取消</button>
           </div>
         </div>
       </div>

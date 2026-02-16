@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 interface ModelIdListEditorProps {
   idPrefix: string;
   rows: string[];
@@ -9,6 +11,8 @@ export function ModelIdListEditor(props: ModelIdListEditorProps) {
   const { idPrefix, rows, onRowsChange, hint } = props;
   const list = rows.length ? rows : [""];
   const count = list.filter((x) => String(x || "").trim()).length;
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   const updateRow = (index: number, value: string) => {
     const next = [...list];
@@ -29,6 +33,14 @@ export function ModelIdListEditor(props: ModelIdListEditorProps) {
     onRowsChange([...list, ""]);
   };
 
+  const reorderRows = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return;
+    const next = [...list];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onRowsChange(next);
+  };
+
   return (
     <details id={`${idPrefix}-model-list-details`} className="personal-model-list-details" open>
       <summary>
@@ -41,13 +53,48 @@ export function ModelIdListEditor(props: ModelIdListEditorProps) {
         <div className="settings-row">
           <label className="settings-label">Model ID</label>
           <div className="settings-control">
-            <div id={`${idPrefix}-model-inputs`} className="personal-model-inputs">
+            <div
+              id={`${idPrefix}-model-inputs`}
+              className={`personal-model-inputs ${dragIndex !== null ? "dragging-active" : ""}`}
+            >
               {list.map((value, index) => (
                 <div
                   key={`${idPrefix}-row-${index}`}
-                  className={`${idPrefix}-model-row personal-model-row`}
+                  className={`${idPrefix}-model-row personal-model-row ${dragIndex === index ? "dragging-current" : ""}`}
                   data-model-prefix={idPrefix}
                   data-model-index={index}
+                  draggable
+                  onDragStart={(event) => {
+                    setDragIndex(index);
+                    setDropIndex(index);
+                    try {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", String(index));
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (dropIndex !== index) setDropIndex(index);
+                    try {
+                      event.dataTransfer.dropEffect = "move";
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const from = dragIndex;
+                    const to = index;
+                    if (from !== null) reorderRows(from, to);
+                    setDragIndex(null);
+                    setDropIndex(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragIndex(null);
+                    setDropIndex(null);
+                  }}
                 >
                   <input
                     className={`settings-number-input ${idPrefix}-model-id-input personal-model-id-input`}
@@ -66,6 +113,9 @@ export function ModelIdListEditor(props: ModelIdListEditorProps) {
                   </button>
                 </div>
               ))}
+              {dragIndex !== null && dropIndex !== null && dropIndex >= 0 && dropIndex < list.length ? (
+                <div className="personal-model-placeholder" />
+              ) : null}
             </div>
           </div>
         </div>

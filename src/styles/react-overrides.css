@@ -66,6 +66,38 @@
   animation: spin 1s linear infinite;
 }
 
+#split-chapter-btn.draft-split-btn {
+  min-width: 110px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+#split-chapter-btn.draft-split-btn.is-busy,
+#split-chapter-btn.draft-split-btn:disabled {
+  background: rgba(142, 148, 160, 0.86);
+  border-color: rgba(120, 126, 138, 0.95);
+  box-shadow: none;
+  color: #f5f6f8;
+  cursor: not-allowed;
+}
+
+#toolbar-status-bar {
+  overflow: visible;
+  max-width: none;
+  flex-wrap: wrap;
+}
+
+#toolbar-status-current-model {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-all;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -345,4 +377,90 @@
 
 [data-theme="dark"] .draft-loading {
   background: rgba(0, 0, 0, 0.62);
+}
+
+.polish-modal-content {
+  width: min(760px, 94vw);
+}
+
+.polish-requirements-input {
+  min-height: 180px;
+}
+
+.polish-engine-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2f80ed, #1f6ed6);
+}
+
+.chapter-manager-content {
+  width: min(920px, 96vw);
+}
+
+.chapter-item-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(240, 244, 252, 0.2));
+  border-color: rgba(176, 184, 196, 0.42);
+}
+
+.chapter-item-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.chapter-preview-modal-content {
+  width: min(1040px, 97vw);
+  max-height: 92vh;
+}
+
+.chapter-preview-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.chapter-preview-body {
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 14px;
+  max-height: 58vh;
+  overflow: auto;
+  margin-bottom: 14px;
+}
+
+.chapter-preview-paper {
+  margin: 0;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 168, 182, 0.3);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 255, 0.7)),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(120, 130, 150, 0.08) 0,
+      rgba(120, 130, 150, 0.08) 1px,
+      transparent 1px,
+      transparent 34px
+    );
+}
+
+.chapter-preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.95;
 }

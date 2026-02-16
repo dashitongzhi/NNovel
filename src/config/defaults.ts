@@ -21,7 +21,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   gemini_reasoning_effort: "medium",
   claude_reasoning_effort: "medium",
   doubao_reasoning_effort: "medium",
-  doubao_models: "doubao-seed-1-6-251015",
+  doubao_models: "doubao-seed-1-6-251015\ndoubao-seed-1-6-lite-251015\ndoubao-seed-1-6-flash-250828",
   doubao_model: "doubao-seed-1-6-251015",
   personal_base_url: "",
   personal_api_key: "",

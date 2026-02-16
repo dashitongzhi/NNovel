@@ -20,6 +20,15 @@ export function ConfigSelect(props: ConfigSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
+  const commitSelection = (nextValue: string) => {
+    const trimmed = String(nextValue || "").trim();
+    if (!trimmed) return;
+    // Temporary debug: visible in default console level.
+    console.log("[debug][ConfigSelect:select]", { id, from: value, to: trimmed });
+    onChange(trimmed);
+    setOpen(false);
+  };
+
   useEffect(() => {
     if (!open) return;
     const onDocClick = (event: MouseEvent) => {
@@ -57,7 +66,11 @@ export function ConfigSelect(props: ConfigSelectProps) {
 
   useEffect(() => {
     if (!activeValue) return;
-    if (activeValue !== value) onChange(activeValue);
+    if (activeValue !== value) {
+      // Temporary debug: track auto-fallback selection correction.
+      console.log("[debug][ConfigSelect:auto-fix]", { id, value, activeValue });
+      onChange(activeValue);
+    }
   }, [activeValue, onChange, value]);
 
   return (
@@ -68,6 +81,8 @@ export function ConfigSelect(props: ConfigSelectProps) {
         className={className}
         disabled={disabled}
         onClick={() => {
+          // Temporary debug: track menu open toggle.
+          console.log("[debug][ConfigSelect:toggle]", { id, value, activeValue, disabled, open: !open });
           if (!disabled) setOpen((v) => !v);
         }}
       >
@@ -80,9 +95,15 @@ export function ConfigSelect(props: ConfigSelectProps) {
             type="button"
             className={`config-select-option ${item.value === activeValue ? "active" : ""}`}
             data-value={item.value}
-            onClick={() => {
-              onChange(item.value);
-              setOpen(false);
+            onMouseDown={(event) => {
+              // Commit on mousedown so selection won't be lost if menu closes before click.
+              event.preventDefault();
+              event.stopPropagation();
+              commitSelection(item.value);
+            }}
+            onClick={(event) => {
+              // Fallback for environments where mousedown is suppressed.
+              event.preventDefault();
             }}
           >
             {item.label}

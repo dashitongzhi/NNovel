@@ -24,7 +24,7 @@ interface ModalHostProps {
   selfCheckOpen: boolean;
   selfCheckLoading: boolean;
   selfCheckSummary: string;
-  selfCheckRows: Array<{ id: string; label: string; ok: boolean; detail?: string; required?: boolean }>;
+  selfCheckRows: Array<{ id: string; label: string; ok: boolean; detail?: string; required?: boolean; pending?: boolean }>;
   onRecheck: () => void;
   onCloseSelfCheck: () => void;
 }
@@ -128,15 +128,22 @@ export function ModalHost(props: ModalHostProps) {
           <div className="consistency-conflict-list">
             {props.selfCheckRows.length === 0 && !props.selfCheckLoading ? <div className="consistency-item">暂无检测结果</div> : null}
             {props.selfCheckRows.map((row, idx) => (
-              <div className={`self-check-item ${row.ok ? "ok" : "bad"}`} key={`${row.id || "s"}-${idx}`}>
+              <div className={`self-check-item ${row.pending ? "pending" : row.ok ? "ok" : "bad"}`} key={`${row.id || "s"}-${idx}`}>
                 <div>
                   <div className="check-name">
                     {row.label}
-                    {row.required ? "（必需）" : ""}
+                    {row.required && !/chatgpt/i.test(String(row.label || "")) ? "（必需）" : ""}
                   </div>
                   <div className="check-detail">{row.detail || ""}</div>
                 </div>
-                <div className="check-state">{row.ok ? "就绪" : "异常"}</div>
+                <div className="check-state">
+                  {row.pending ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span className="self-check-mini-spinner" aria-hidden="true" />
+                      检测中
+                    </span>
+                  ) : row.ok ? "就绪" : "异常"}
+                </div>
               </div>
             ))}
           </div>
