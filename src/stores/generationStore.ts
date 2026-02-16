@@ -68,6 +68,7 @@ let streamFinal = false;
 let pollingNoChangeRounds = 0;
 let pollingLastPartial = "";
 let pendingStartToken: { cancelled: boolean } | null = null;
+let pendingPauseDesired: boolean | null = null;
 
 const TYPEWRITER_ENABLED_KEY = "writer:typewriterEnabled";
 const TYPEWRITER_SPEED_KEY = "writer:typewriterSpeed";
@@ -228,6 +229,7 @@ function resetStreamingState(): void {
 
 function finalizeGeneratedOutput(finalText: string, toast = true): void {
   resetStreamingState();
+  pendingPauseDesired = null;
   useGenerationStore.setState({
     generatedText: finalText,
     isWriting: false,
@@ -335,6 +337,7 @@ async function poll(taskId: string): Promise<void> {
       } else {
         finalizeGeneratedOutput(finalText, true);
       }
+      pendingPauseDesired = null;
       useGenerationStore.setState({ requestId: "" });
       return;
     }
@@ -342,6 +345,7 @@ async function poll(taskId: string): Promise<void> {
     if (result.state === "error") {
       stopPolling();
       resetStreamingState();
+      pendingPauseDesired = null;
       const reason = formatGenerationIssueText(result.message || "生成失败", result.error_code || "");
       useGenerationStore.setState({
         isWriting: false,
@@ -358,6 +362,7 @@ async function poll(taskId: string): Promise<void> {
     if (result.state === "stopped" || result.state === "stopping") {
       stopPolling();
       resetStreamingState();
+      pendingPauseDesired = null;
       useGenerationStore.setState({
         isWriting: false,
         isPaused: false,
@@ -373,6 +378,7 @@ async function poll(taskId: string): Promise<void> {
     if (result.state === "paused") {
       stopPolling();
       stopTyping();
+      pendingPauseDesired = true;
       useGenerationStore.setState({
         isPaused: true,
         thinking: result.thinking || "已暂停",
@@ -411,6 +417,7 @@ async function poll(taskId: string): Promise<void> {
   } catch (error) {
     stopPolling();
     resetStreamingState();
+    pendingPauseDesired = null;
     const message = error instanceof Error ? error.message : "连接中断";
     const parsed = formatGenerationIssueText(message);
     useGenerationStore.setState({
@@ -456,6 +463,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     stopPolling();
     pollingNoChangeRounds = 0;
     pollingLastPartial = "";
+    pendingPauseDesired = null;
 
     set({
       isWriting: true,
@@ -487,11 +495,26 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         return;
       }
       set({ taskId, requestId: payload.request_id || "" });
+      if (pendingPauseDesired === true) {
+        stopPolling();
+        stopTyping();
+        set({
+          isPaused: true,
+          thinking: "已暂停",
+          skipVisible: false,
+        });
+        setStage("paused");
+        void pauseGenerate(taskId, true).catch(() => {
+          // ignore pause sync failure
+        });
+        return;
+      }
       setStage("generating");
       await poll(taskId);
     } catch (error) {
       stopPolling();
       resetStreamingState();
+      pendingPauseDesired = null;
       const message = error instanceof Error ? error.message : "启动写作失败";
       const parsed = formatGenerationIssueText(message);
       set({
@@ -512,6 +535,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   stop: async () => {
     const { taskId } = get();
+    pendingPauseDesired = null;
     if (pendingStartToken && !taskId) {
       pendingStartToken.cancelled = true;
     }
@@ -553,11 +577,26 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   togglePause: async () => {
     const state = get();
     if (!state.taskId) {
+      if (state.isWriting) {
+        const nextPaused = !state.isPaused;
+        pendingPauseDesired = nextPaused;
+        if (nextPaused) {
+          stopPolling();
+          stopTyping();
+          set({ isPaused: true, thinking: "已暂停", skipVisible: false });
+          useUiStore.getState().addToast("写作已暂停", "info");
+          return;
+        }
+        set({ isPaused: false, thinking: "AI 正在创作..." });
+        useUiStore.getState().addToast("继续写作", "info");
+        return;
+      }
       useUiStore.getState().addToast("当前没有可暂停的写作任务", "warning");
       return;
     }
 
     if (!state.isPaused) {
+      pendingPauseDesired = true;
       stopPolling();
       stopTyping();
       set({ isPaused: true, thinking: "已暂停", skipVisible: false });
@@ -578,6 +617,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       return;
     }
 
+    pendingPauseDesired = false;
     if (!["queued", "generating", "finishing"].includes(String(state.stage || ""))) {
       setStage("generating");
     }
@@ -627,6 +667,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   clearGenerated: () => {
+    pendingPauseDesired = null;
     resetStreamingState();
     stopPolling();
     set({
@@ -644,6 +685,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   detectRecovery: async () => {
     try {
+      pendingPauseDesired = null;
       const info = await getRecovery();
       if (!info || !info.recoverable) {
         set({ recoveryInfo: null });
@@ -700,6 +742,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   resumeRecovery: async () => {
+    pendingPauseDesired = null;
     stopPolling();
     resetStreamingState();
     pollingNoChangeRounds = 0;

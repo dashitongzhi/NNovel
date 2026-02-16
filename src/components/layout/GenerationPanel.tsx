@@ -70,7 +70,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
         <div className="toolbar">
           <button
             id="pause-writing-btn"
-            className={`btn btn-warning btn-sm writer-icon-btn ${props.hasTask ? "" : "hidden"}`}
+            className={`btn btn-warning btn-sm writer-icon-btn ${props.isWriting || props.hasTask ? "" : "hidden"}`}
             type="button"
             onClick={props.onPauseResume}
             title={props.isPaused ? "继续写作" : "暂停写作"}

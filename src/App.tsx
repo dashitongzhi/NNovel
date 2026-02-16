@@ -35,7 +35,7 @@ import type { AppConfig, BookshelfPayload, ConsistencyConflict, ModelHealthRow, 
 
 function statusText(stage: string, isPaused: boolean, isWriting: boolean): string {
   if (isPaused) return "已暂停";
-  if (isWriting || stage === "queued" || stage === "generating" || stage === "finishing") return "已加载提要...";
+  if (isWriting || stage === "queued" || stage === "generating" || stage === "finishing") return "AI正在创作...";
   if (stage === "completed") return "AI创作完成";
   if (stage === "paused") return "已暂停";
   if (stage === "error") return "状态异常";
