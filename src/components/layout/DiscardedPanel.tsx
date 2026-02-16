@@ -1,8 +1,10 @@
 import type { DiscardedItem } from "@/types/domain";
+import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 
 interface DiscardedPanelProps {
   visible: boolean;
   items: DiscardedItem[];
+  dynamicEffectsEnabled: boolean;
   onRestore: (id: number) => void;
   onDelete: (id: number) => void;
 }
@@ -12,7 +14,7 @@ export function DiscardedPanel(props: DiscardedPanelProps) {
 
   return (
     <section id="discarded-drafts-panel">
-      <div className="card discarded-panel-card">
+      <LiquidGlassFrame className="card discarded-panel-card liquid-glass-card-shell" dynamic={props.dynamicEffectsEnabled}>
         <div className="card-header">
           <h3>废弃稿件</h3>
           <span className="status-text" id="discarded-count-text">{props.items.length} 条</span>
@@ -43,7 +45,7 @@ export function DiscardedPanel(props: DiscardedPanelProps) {
             })
           )}
         </div>
-      </div>
+      </LiquidGlassFrame>
     </section>
   );
 }

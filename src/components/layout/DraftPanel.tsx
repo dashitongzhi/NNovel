@@ -1,3 +1,5 @@
+import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
+
 interface DraftPanelProps {
   content: string;
   splitLoading: boolean;
@@ -5,6 +7,7 @@ interface DraftPanelProps {
   polishLoading: boolean;
   cacheExpanded: boolean;
   cacheEnabled: boolean;
+  dynamicEffectsEnabled: boolean;
   onChange: (text: string) => void;
   onSplitChapter: () => void;
   onPolish: () => void;
@@ -24,7 +27,7 @@ export function DraftPanel(props: DraftPanelProps) {
 
   return (
     <div className="desk-column">
-      <div id="draft-box" className="card" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <LiquidGlassFrame id="draft-box" className="card liquid-glass-card-shell" dynamic={props.dynamicEffectsEnabled} style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <div className="card-header">
           <h3>
             草稿箱 <span id="draft-char-count" className="badge">{charCount}字</span>
@@ -72,9 +75,9 @@ export function DraftPanel(props: DraftPanelProps) {
             <span>正在保存...</span>
           </div>
         </div>
-      </div>
+      </LiquidGlassFrame>
 
-      <div id="cache-box" className={`card ${props.cacheEnabled ? "" : "hidden"}`}>
+      <LiquidGlassFrame id="cache-box" className={`card liquid-glass-card-shell ${props.cacheEnabled ? "" : "hidden"}`} dynamic={props.dynamicEffectsEnabled}>
         <div id="cache-toggle-header" className="card-header" onClick={props.onToggleCache} style={{ cursor: "pointer" }}>
           <h3>
             📦 缓存区{" "}
@@ -86,7 +89,7 @@ export function DraftPanel(props: DraftPanelProps) {
         <div id="cache-content" className={`cache-content ${props.cacheExpanded ? "" : "hidden"}`}>
           <pre id="cache-text" className="cache-pre">{props.content.trim() ? props.content.slice(-350) : "（暂无缓存内容）"}</pre>
         </div>
-      </div>
+      </LiquidGlassFrame>
     </div>
   );
 }

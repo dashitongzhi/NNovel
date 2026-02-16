@@ -1,5 +1,6 @@
 import { STAGE_ORDER } from "@/config/defaults";
 import type { GenerationTaskState } from "@/types/domain";
+import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 
 interface GenerationPanelProps {
   statusState: GenerationTaskState;
@@ -16,6 +17,7 @@ interface GenerationPanelProps {
   skipVisible: boolean;
   showTypeCursor: boolean;
   autoScroll: boolean;
+  dynamicEffectsEnabled: boolean;
   onStartStop: () => void;
   onPauseResume: () => void;
   onSkip: () => void;
@@ -63,7 +65,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
   };
 
   return (
-    <div id="generation-area" className="card">
+    <LiquidGlassFrame id="generation-area" className="card liquid-glass-card-shell" dynamic={props.dynamicEffectsEnabled}>
       <div className="card-header">
         <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
           AI 作家
@@ -176,6 +178,6 @@ export function GenerationPanel(props: GenerationPanelProps) {
           重写
         </button>
       </div>
-    </div>
+    </LiquidGlassFrame>
   );
 }

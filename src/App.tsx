@@ -8,6 +8,7 @@ import { ModalHost } from "@/components/modals/ModalHost";
 import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
 import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
+import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
 import { useGenerationStore } from "@/stores/generationStore";
@@ -1662,6 +1663,7 @@ function App() {
           <Toolbar
             sidebarCollapsed={ui.sidebarCollapsed}
             discardedVisible={discarded.visible}
+            dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
             interactionsLocked={generation.isWriting}
             config={configStore.config}
             status={runtimeStatus}
@@ -1690,6 +1692,7 @@ function App() {
           <DiscardedPanel
             visible={discarded.visible}
             items={discarded.items}
+            dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
             onRestore={(id) => void restoreDiscarded(id)}
             onDelete={(id) => void discarded.remove(id)}
           />
@@ -1702,6 +1705,7 @@ function App() {
               polishLoading={draftPolishing}
               cacheEnabled={cacheEnabled}
               cacheExpanded={cacheEnabled && cacheExpanded}
+              dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
               onChange={draftStore.setContent}
               onPolish={() => void handlePolishDraft()}
               onSplitChapter={() => void handleSplitChapter()}
@@ -1733,6 +1737,7 @@ function App() {
                 && generation.stage !== "stopped"
               }
               autoScroll={generation.autoScroll}
+              dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
               onStartStop={() => void handleStartStop()}
               onPauseResume={() => void handlePauseResume()}
               onSkip={() => void handleSkipAnimation()}
@@ -1766,6 +1771,7 @@ function App() {
         selfCheckLoading={selfCheckLoading}
         selfCheckSummary={selfCheckSummary}
         selfCheckRows={selfCheckRows}
+        dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
         onRecheck={() => void runSelfCheck(false)}
         onCloseSelfCheck={() => setSelfCheckOpen(false)}
       />
@@ -1868,7 +1874,7 @@ function App() {
       <div id="assist-settings-modal" className={`modal-overlay ${assistSettingsOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setAssistSettingsOpen(false);
       }}>
-        <div className="modal-content settings-modal-content">
+        <LiquidGlassFrame className="modal-content settings-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>辅助功能</h3>
             <button className="icon-btn" type="button" onClick={() => setAssistSettingsOpen(false)}>×</button>
@@ -1889,19 +1895,26 @@ function App() {
                   <span className="ios-switch-slider" />
                 </span>
               </label>
-              <p className="settings-desc">关闭后将隐藏对应界面模块，不影响实际写作生成流程。</p>
+              <label className="ios-switch-row" htmlFor="dynamic-effects-enabled">
+                <span className="settings-label">液态玻璃动态交互（激进）</span>
+                <span className="ios-switch">
+                  <input id="dynamic-effects-enabled" type="checkbox" checked={ui.dynamicEffectsEnabled} onChange={(e) => ui.setDynamicEffectsEnabled(e.target.checked)} />
+                  <span className="ios-switch-slider" />
+                </span>
+              </label>
+              <p className="settings-desc">开启后默认使用更强动态折射；关闭后使用更保守稳定的液态玻璃参数。</p>
             </div>
           </div>
           <div className="modal-actions">
             <button className="btn btn-primary" type="button" onClick={() => setAssistSettingsOpen(false)}>完成</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="access-settings-modal" className={`modal-overlay ${accessSettingsOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setAccessSettingsOpen(false);
       }}>
-        <div className="modal-content settings-modal-content">
+        <LiquidGlassFrame className="modal-content settings-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>调用方式</h3>
             <button className="icon-btn" type="button" onClick={() => setAccessSettingsOpen(false)}>×</button>
@@ -1980,13 +1993,13 @@ function App() {
             </button>
             <button className="btn btn-primary" type="button" onClick={() => setAccessSettingsOpen(false)}>完成</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="doubao-config-modal" className={`modal-overlay ${doubaoSettingsOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setDoubaoSettingsOpen(false);
       }}>
-        <div className="modal-content settings-modal-content">
+        <LiquidGlassFrame className="modal-content settings-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>豆包</h3>
             <button className="icon-btn" type="button" onClick={() => setDoubaoSettingsOpen(false)}>×</button>
@@ -2029,13 +2042,13 @@ function App() {
             <button className="btn btn-primary" type="button" onClick={() => void saveDoubaoConfigFromModal()} disabled={doubaoSaveDisabled}>保存并应用</button>
             <button className="btn btn-danger" type="button" onClick={() => setDoubaoSettingsOpen(false)}>取消</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="personal-config-modal" className={`modal-overlay ${personalConfigOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setPersonalConfigOpen(false);
       }}>
-        <div className="modal-content settings-modal-content">
+        <LiquidGlassFrame className="modal-content settings-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>个人配置</h3>
             <button className="icon-btn" type="button" onClick={() => setPersonalConfigOpen(false)}>×</button>
@@ -2077,13 +2090,13 @@ function App() {
             <button id="personal-config-save-btn" className="btn btn-primary" type="button" onClick={() => void savePersonalConfigFromModal()} disabled={personalSaveDisabled}>保存并应用</button>
             <button className="btn btn-danger" type="button" onClick={() => setPersonalConfigOpen(false)}>取消</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="settings-json-modal" className={`modal-overlay ${settingsEditorOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setSettingsEditorOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>settings.json</h3>
             <button className="icon-btn" type="button" onClick={() => setSettingsEditorOpen(false)}>×</button>
@@ -2096,13 +2109,13 @@ function App() {
             <button className="btn btn-warning" type="button" onClick={() => void openSettingsPath()}>打开文件</button>
             <button className="btn btn-danger" type="button" onClick={() => setSettingsEditorOpen(false)}>关闭</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="auth-json-modal" className={`modal-overlay ${authEditorOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setAuthEditorOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>auth.json</h3>
             <button className="icon-btn" type="button" onClick={() => setAuthEditorOpen(false)}>×</button>
@@ -2115,13 +2128,13 @@ function App() {
             <button className="btn btn-warning" type="button" onClick={() => void openAuthPath()}>打开文件</button>
             <button className="btn btn-danger" type="button" onClick={() => setAuthEditorOpen(false)}>关闭</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="bookshelf-modal" className={`modal-overlay ${bookshelfOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) closeBookshelfModal();
       }}>
-        <div className="modal-content consistency-modal-content">
+        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>书架</h3>
             <button
@@ -2168,13 +2181,13 @@ function App() {
               })
             )}
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="chapter-manager-modal" className={`modal-overlay ${chaptersOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setChaptersOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content chapter-manager-content">
+        <LiquidGlassFrame className="modal-content consistency-modal-content chapter-manager-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>章节管理</h3>
             <button className="icon-btn" type="button" onClick={() => setChaptersOpen(false)}>×</button>
@@ -2201,13 +2214,13 @@ function App() {
               ))
             )}
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="chapter-preview-modal" className={`modal-overlay ${chapterPreviewOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setChapterPreviewOpen(false);
       }}>
-        <div className="modal-content chapter-preview-modal-content">
+        <LiquidGlassFrame className="modal-content chapter-preview-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>{chapterPreviewItem?.title || "章节预览"}</h3>
             <button className="icon-btn" type="button" onClick={() => setChapterPreviewOpen(false)}>×</button>
@@ -2233,13 +2246,13 @@ function App() {
             <button className="btn btn-primary" type="button" onClick={loadPreviewIntoDraft} disabled={chapterPreviewLoading || !chapterPreviewItem}>载入草稿箱</button>
             <button className="btn btn-danger" type="button" onClick={() => setChapterPreviewOpen(false)}>关闭</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="polish-modal" className={`modal-overlay ${polishModalOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget && !draftPolishing) setPolishModalOpen(false);
       }}>
-        <div className="modal-content polish-modal-content">
+        <LiquidGlassFrame className="modal-content polish-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>润色草稿</h3>
             <button className="icon-btn" type="button" onClick={() => setPolishModalOpen(false)} disabled={draftPolishing}>×</button>
@@ -2264,13 +2277,13 @@ function App() {
             </button>
             <button className="btn btn-danger" type="button" onClick={() => setPolishModalOpen(false)} disabled={draftPolishing}>取消</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="outline-modal" className={`modal-overlay ${outlineOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) closeOutlineModal(true);
       }}>
-        <div className="modal-content outline-modal-content">
+        <LiquidGlassFrame className="modal-content outline-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div id="outline-loading-overlay" className={`loading-overlay ${outlineGenerating ? "" : "hidden"}`}>
             <div className={`spinner ${outlinePaused ? "paused" : ""}`} />
             <div className="loading-text">{outlinePaused ? "已暂停生成大纲" : "正在生成大纲..."}</div>
@@ -2323,13 +2336,13 @@ function App() {
             </button>
             <button className="btn btn-danger" type="button" disabled={outlineGenerating && !outlinePaused} onClick={() => closeOutlineModal(true)}>取消</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="model-health-modal" className={`modal-overlay ${modelHealthOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setModelHealthOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>模型健康面板</h3>
             <button className="icon-btn" type="button" onClick={() => setModelHealthOpen(false)}>×</button>
@@ -2369,7 +2382,7 @@ function App() {
             <button className="btn btn-primary" type="button" onClick={() => void refreshRuntimeStatus(true)}>刷新</button>
             <button className="btn btn-danger" type="button" onClick={() => setModelHealthOpen(false)}>关闭</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div id="info-box-modal" className={`modal-overlay ${infoBoxOpen ? "" : "hidden"}`} onClick={(e) => {
@@ -2378,7 +2391,7 @@ function App() {
           closeInfoContextMenu();
         }
       }}>
-        <div className="modal-content consistency-modal-content">
+        <LiquidGlassFrame className="modal-content consistency-modal-content liquid-glass-modal-shell" dynamic={ui.dynamicEffectsEnabled}>
           <div className="modal-header">
             <h3>信息箱</h3>
             <button className="icon-btn" type="button" onClick={() => {
@@ -2417,7 +2430,7 @@ function App() {
               closeInfoContextMenu();
             }}>关闭</button>
           </div>
-        </div>
+        </LiquidGlassFrame>
       </div>
 
       <div

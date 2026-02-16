@@ -419,6 +419,85 @@
   width: min(920px, 96vw);
 }
 
+.liquid-glass-frame {
+  position: relative;
+  display: block;
+  min-width: 0;
+  overflow: visible;
+}
+
+.liquid-glass-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: inherit;
+  flex-direction: inherit;
+  justify-content: inherit;
+  align-items: inherit;
+  gap: inherit;
+  flex-wrap: inherit;
+  flex: 1 1 auto;
+}
+
+.liquid-glass-native {
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  transition: filter 0.2s ease, opacity 0.2s ease !important;
+  pointer-events: none !important;
+}
+
+.liquid-glass-native > * {
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  pointer-events: none !important;
+}
+
+.liquid-glass-native * {
+  pointer-events: none !important;
+}
+
+.liquid-glass-native-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.liquid-glass-toolbar-shell {
+  border-radius: 16px;
+  overflow: visible;
+}
+
+.liquid-glass-card-shell {
+  border-radius: 18px;
+}
+
+.liquid-glass-modal-shell {
+  border-radius: 16px;
+}
+
+.settings-modal-content.liquid-glass-frame {
+  overflow: hidden;
+}
+
+.settings-modal-content .liquid-glass-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-modal-content .settings-modal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .chapter-item-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(240, 244, 252, 0.2));
   border-color: rgba(176, 184, 196, 0.42);

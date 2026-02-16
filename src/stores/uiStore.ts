@@ -17,6 +17,7 @@ export interface InfoBoxItem {
 
 interface UiState {
   theme: ThemeMode;
+  dynamicEffectsEnabled: boolean;
   toasts: ToastItem[];
   infoItems: InfoBoxItem[];
   sidebarCollapsed: boolean;
@@ -26,17 +27,25 @@ interface UiState {
   clearInfoItems: () => void;
   removeInfoItem: (id: number) => void;
   setTheme: (theme: ThemeMode) => void;
+  setDynamicEffectsEnabled: (enabled: boolean) => void;
   syncTheme: () => void;
   toggleSidebar: () => void;
 }
 
 let nextToastId = 1;
 const THEME_KEY = "theme";
+const DYNAMIC_EFFECTS_KEY = "writer:dynamicEffectsEnabled";
 
 function readThemeMode(): ThemeMode {
   const raw = String(localStorage.getItem(THEME_KEY) || "auto").trim().toLowerCase();
   if (raw === "light" || raw === "dark" || raw === "auto") return raw;
   return "auto";
+}
+
+function readDynamicEffectsEnabled(): boolean {
+  const raw = localStorage.getItem(DYNAMIC_EFFECTS_KEY);
+  if (raw == null) return false;
+  return raw === "true";
 }
 
 function resolvedTheme(mode: ThemeMode): "light" | "dark" {
@@ -59,6 +68,7 @@ function applyTheme(mode: ThemeMode): void {
 
 export const useUiStore = create<UiState>((set) => ({
   theme: readThemeMode(),
+  dynamicEffectsEnabled: readDynamicEffectsEnabled(),
   toasts: [],
   infoItems: [],
   sidebarCollapsed: false,
@@ -87,6 +97,10 @@ export const useUiStore = create<UiState>((set) => ({
     localStorage.setItem(THEME_KEY, theme);
     applyTheme(theme);
     set({ theme });
+  },
+  setDynamicEffectsEnabled: (enabled) => {
+    localStorage.setItem(DYNAMIC_EFFECTS_KEY, String(enabled));
+    set({ dynamicEffectsEnabled: enabled });
   },
   syncTheme: () => {
     const mode = useUiStore.getState().theme;

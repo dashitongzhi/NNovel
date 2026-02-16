@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ENGINE_LABELS } from "@/config/defaults";
 import type { AppConfig, StartupStatus } from "@/types/domain";
+import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 
 interface ToolbarProps {
   sidebarCollapsed: boolean;
   discardedVisible: boolean;
+  dynamicEffectsEnabled: boolean;
   interactionsLocked?: boolean;
   config: AppConfig;
   status: StartupStatus | null;
@@ -120,16 +122,17 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <section id="extra-settings">
-      <div
+      <LiquidGlassFrame
         id="toolbar-container"
-        className="section-header top-toolbar-row"
+        className="section-header top-toolbar-row liquid-glass-toolbar-shell"
+        dynamic={props.dynamicEffectsEnabled}
         style={{
           padding: "10px 16px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           gap: 8,
-          flexWrap: "wrap",
+          flexWrap: "nowrap",
         }}
       >
         <div className="toolbar-group left" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -197,7 +200,7 @@ export function Toolbar(props: ToolbarProps) {
           {IconBtn({ title: "查看废弃稿件", icon: ICONS.discarded, active: props.discardedVisible, onClick: props.onToggleDiscarded })}
           {IconBtn({ title: "系统设置", icon: ICONS.settings, onClick: props.onOpenSettings })}
         </div>
-      </div>
+      </LiquidGlassFrame>
     </section>
   );
 }
