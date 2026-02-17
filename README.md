@@ -1,4 +1,4 @@
-# NNovel React Migration (react_test)
+# NNovel （liquid-glass-react）
 
 This project is an independent React + TypeScript + Vite migration workspace for NNovel.
 
