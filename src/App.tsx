@@ -1905,7 +1905,7 @@ function App() {
         <div className="modal-content settings-modal-content">
           <div className="modal-header">
             <h3>辅助功能</h3>
-            <button className="icon-btn" type="button" onClick={() => setAssistSettingsOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setAssistSettingsOpen(false)}>×</button>
           </div>
           <div className="settings-modal-scroll">
             <div className="settings-section">
@@ -1959,7 +1959,7 @@ function App() {
         <div className="modal-content settings-modal-content">
           <div className="modal-header">
             <h3>调用方式</h3>
-            <button className="icon-btn" type="button" onClick={() => setAccessSettingsOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setAccessSettingsOpen(false)}>×</button>
           </div>
           <div className="settings-modal-scroll">
             <div className="settings-section">
@@ -2044,7 +2044,7 @@ function App() {
         <div className="modal-content settings-modal-content">
           <div className="modal-header">
             <h3>豆包</h3>
-            <button className="icon-btn" type="button" onClick={() => setDoubaoSettingsOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setDoubaoSettingsOpen(false)}>×</button>
           </div>
           <div className="settings-modal-scroll">
             <div className="settings-section">
@@ -2093,7 +2093,7 @@ function App() {
         <div className="modal-content settings-modal-content">
           <div className="modal-header">
             <h3>个人配置</h3>
-            <button className="icon-btn" type="button" onClick={() => setPersonalConfigOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setPersonalConfigOpen(false)}>×</button>
           </div>
           <div className="settings-modal-scroll">
             <div className="settings-section">
@@ -2141,7 +2141,7 @@ function App() {
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>settings.json</h3>
-            <button className="icon-btn" type="button" onClick={() => setSettingsEditorOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setSettingsEditorOpen(false)}>×</button>
           </div>
           <p className="consistency-summary">路径：{settingsEditorPath || configStore.config.settings_path || "未读取"}</p>
           <textarea className="outline-input" style={{ minHeight: 320, fontFamily: "Consolas, 'Courier New', monospace" }} value={settingsEditorContent} onChange={(e) => setSettingsEditorContent(e.target.value)} />
@@ -2160,7 +2160,7 @@ function App() {
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>auth.json</h3>
-            <button className="icon-btn" type="button" onClick={() => setAuthEditorOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setAuthEditorOpen(false)}>×</button>
           </div>
           <p className="consistency-summary">路径：{authEditorPath || configStore.config.auth_path || "未读取"}</p>
           <textarea className="outline-input" style={{ minHeight: 320, fontFamily: "Consolas, 'Courier New', monospace" }} value={authEditorContent} onChange={(e) => setAuthEditorContent(e.target.value)} />
@@ -2232,7 +2232,7 @@ function App() {
         <div className="modal-content consistency-modal-content chapter-manager-content">
           <div className="modal-header">
             <h3>章节管理</h3>
-            <button className="icon-btn" type="button" onClick={() => setChaptersOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setChaptersOpen(false)}>×</button>
           </div>
           <div className="modal-actions" style={{ marginBottom: 12 }}>
             <button className="btn btn-warning" type="button" onClick={() => void reloadChapters()}>刷新</button>
@@ -2265,7 +2265,7 @@ function App() {
         <div className="modal-content chapter-preview-modal-content">
           <div className="modal-header">
             <h3>{chapterPreviewItem?.title || "章节预览"}</h3>
-            <button className="icon-btn" type="button" onClick={() => setChapterPreviewOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setChapterPreviewOpen(false)}>×</button>
           </div>
           <div className="chapter-preview-meta">
             <span>章节ID：{chapterPreviewItem?.id || "-"}</span>
@@ -2297,7 +2297,7 @@ function App() {
         <div className="modal-content polish-modal-content">
           <div className="modal-header">
             <h3>润色草稿</h3>
-            <button className="icon-btn" type="button" onClick={() => setPolishModalOpen(false)} disabled={draftPolishing}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setPolishModalOpen(false)} disabled={draftPolishing}>×</button>
           </div>
           <p className="consistency-summary">
             当前引擎：
@@ -2398,7 +2398,7 @@ function App() {
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>模型健康面板</h3>
-            <button className="icon-btn" type="button" onClick={() => setModelHealthOpen(false)}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setModelHealthOpen(false)}>×</button>
           </div>
           <p className="consistency-summary">最近 N 次调用统计：成功率、平均首字时间、平均总耗时。</p>
           <div className="model-health-table-wrap">
@@ -2447,7 +2447,7 @@ function App() {
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>信息箱</h3>
-            <button className="icon-btn" type="button" onClick={() => {
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => {
               setInfoBoxOpen(false);
               closeInfoContextMenu();
             }}>×</button>

@@ -7,6 +7,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "liquid-glass-react": path.resolve(
+        __dirname,
+        "../../git clone/liquid-glass-react/dist/index.esm.js",
+      ),
     },
   },
   server: {

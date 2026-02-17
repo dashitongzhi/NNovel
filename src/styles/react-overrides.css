@@ -425,6 +425,47 @@
   min-width: 0;
   overflow: visible;
   isolation: isolate;
+  /* Kill any inherited backdrop-filter from legacy .card / .glass-panel etc.
+     The outer container must NEVER have backdrop-filter — it sits outside
+     the isolation stacking context so inner shields cannot mask its flicker. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ── Shield (::before) ─────────────────────────────────────────────────
+   Pure CSS pseudo-element — React never creates, updates or reconciles it.
+   Chromium never dirty-marks it because it has no JS-driven descendants.
+   The solid opaque background guarantees that even when every single
+   backdrop-filter in the document is dropped during a compositor flush,
+   the user CANNOT see raw page content flash through the panel.
+   This is the "frontend deception" layer: it makes flicker invisible. */
+.liquid-glass-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  pointer-events: none;
+  background: rgba(241, 245, 251, 0.88);
+  transform: translateZ(0);
+}
+
+[data-theme="dark"] .liquid-glass-frame::before {
+  background: rgba(20, 34, 58, 0.88);
+}
+
+/* ── Cover ─────────────────────────────────────────────────────────────
+   Inside isolation:isolate, backdrop-filter can only blur the ::before
+   shield (a solid colour) — completely pointless.  Keep the div for the
+   toolbar's LiquidGlass runtime but disable all filter effects. */
+.liquid-glass-cover {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  contain: strict;
+  transform: translateZ(0);
 }
 
 .liquid-glass-layer {
@@ -433,6 +474,9 @@
   z-index: 0;
   overflow: hidden;
   border-radius: inherit;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: strict;
 }
 
 .liquid-glass-layer:not(.interactive),
@@ -440,6 +484,7 @@
   pointer-events: none !important;
 }
 
+/* Static fill — decorative only (gradients, border, shadow). */
 .liquid-glass-static-fill {
   position: absolute;
   inset: 0;
@@ -448,12 +493,11 @@
   background:
     linear-gradient(150deg, rgba(255, 255, 255, 0.34), rgba(244, 249, 255, 0.18)),
     radial-gradient(120% 86% at 8% 4%, rgba(255, 255, 255, 0.2), transparent 56%);
-  backdrop-filter: blur(15px) saturate(1.18);
-  -webkit-backdrop-filter: blur(15px) saturate(1.18);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
     inset 0 -1px 0 rgba(255, 255, 255, 0.12),
     0 10px 24px rgba(19, 35, 58, 0.18);
+  transform: translateZ(0);
 }
 
 [data-theme="dark"] .liquid-glass-static-fill {
@@ -461,8 +505,6 @@
   background:
     linear-gradient(150deg, rgba(49, 75, 112, 0.42), rgba(20, 34, 56, 0.24)),
     radial-gradient(120% 86% at 8% 4%, rgba(111, 151, 220, 0.16), transparent 56%);
-  backdrop-filter: blur(13px) saturate(1.12);
-  -webkit-backdrop-filter: blur(13px) saturate(1.12);
   box-shadow:
     inset 0 1px 0 rgba(190, 211, 240, 0.2),
     inset 0 -1px 0 rgba(84, 120, 176, 0.16),
@@ -474,12 +516,16 @@
   z-index: 1;
   width: 100%;
   min-width: 0;
+  /* Force a separate compositor layer so that ANY repaint inside the content
+     (button clicks, text changes, scrollbar updates) stays confined here and
+     never dirty-marks the glass / cover layers underneath. */
+  transform: translateZ(0);
 }
 
 .liquid-glass-native {
   width: 100% !important;
   height: 100% !important;
-  transition: filter 0.2s ease, opacity 0.2s ease !important;
+  transition: none !important;
 }
 
 .liquid-glass-native .glass {
@@ -722,8 +768,6 @@ body {
 
 .btn {
   border-color: rgba(255, 255, 255, 0.24);
-  backdrop-filter: blur(10px) saturate(1.14);
-  -webkit-backdrop-filter: blur(10px) saturate(1.14);
 }
 
 .btn:hover {
@@ -879,6 +923,11 @@ textarea:focus,
   z-index: 2602;
 }
 
+/* When a dropdown is open, raise it above sibling controls */
+.config-select-open {
+  z-index: 2610;
+}
+
 .engine-picker-menu,
 .config-select-menu {
   z-index: 4600 !important;
@@ -910,9 +959,17 @@ textarea:focus,
   text-align: center;
 }
 
-/* Reduce header flicker in software-rendered glass mode */
-.card {
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+/* ── THE FIX ──────────────────────────────────────────────────────────
+   legacy.css .card has backdrop-filter:blur(12px) + transition:all 0.3s.
+   That backdrop-filter sits on the OUTER container (.liquid-glass-frame
+   div itself), OUTSIDE the isolation:isolate stacking context.
+   Our inner ::before shield / cover cannot mask flicker on the parent.
+   Kill the outer backdrop-filter entirely — inner layers handle the visual. */
+.liquid-glass-frame.card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: transparent !important;
+  transition: none !important;
 }
 
 #writing-desk .liquid-glass-frame.card {

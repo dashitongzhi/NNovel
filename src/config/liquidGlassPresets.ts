@@ -20,29 +20,29 @@ export const GLOBAL_LIQUID_PRESETS: Record<LiquidProfile, LiquidPreset> = {
   },
   aggressive: {
     mode: "standard",
-    displacementScale: 70,
-    blurAmount: 0.0625,
+    displacementScale: 100,
+    blurAmount: 0.5,
     saturation: 140,
     aberrationIntensity: 2,
-    elasticity: 0.15,
+    elasticity: 0,
   },
   experimental: {
     mode: "shader",
-    displacementScale: 70,
-    blurAmount: 0.0625,
+    displacementScale: 100,
+    blurAmount: 0.5,
     saturation: 140,
     aberrationIntensity: 2,
-    elasticity: 0.15,
+    elasticity: 0,
   },
 };
 
 export const DEMO_CARD_PRESET: LiquidPreset = {
   mode: "standard",
-  displacementScale: 70,
-  blurAmount: 0.0625,
+  displacementScale: 100,
+  blurAmount: 0.5,
   saturation: 140,
   aberrationIntensity: 2,
-  elasticity: 0.15,
+  elasticity: 0,
 };
 
 export const DEMO_BUTTON_PRESET: LiquidPreset = {

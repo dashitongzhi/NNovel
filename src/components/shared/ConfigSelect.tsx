@@ -70,7 +70,7 @@ export function ConfigSelect(props: ConfigSelectProps) {
   }, [activeValue, id, onChange, value]);
 
   return (
-    <div ref={rootRef} className="config-select">
+    <div ref={rootRef} className={`config-select${open ? " config-select-open" : ""}`}>
       <button
         id={id}
         type="button"

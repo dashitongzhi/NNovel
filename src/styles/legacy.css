@@ -61,11 +61,9 @@
 
 .glass-btn {
     background: var(--glass-btn-bg);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
     border: 1px solid var(--glass-border);
     box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.05);
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
 
 .glass-btn:hover {

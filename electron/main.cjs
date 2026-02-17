@@ -181,13 +181,5 @@ app.on("before-quit", () => {
 app.on("window-all-closed", () => {
   if (recoveringRenderer) return;
   if (process.platform === "darwin") return;
-  if (IS_DEV && !quittingByUser) {
-    setTimeout(() => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-      }
-    }, 250);
-    return;
-  }
   app.quit();
 });
