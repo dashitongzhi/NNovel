@@ -1718,7 +1718,7 @@ function App() {
   return (
     <>
       <div id="app-background-layer" className={softwareGpuMode ? "software-gpu" : ""} style={activeBackgroundStyle} aria-hidden="true" />
-      <div id="app-background-vignette" aria-hidden="true" />
+      <div id="app-background-vignette" className={softwareGpuMode ? "software-gpu" : ""} aria-hidden="true" />
 
       <div id="app" className={appClassName}>
         <Sidebar

@@ -7,10 +7,51 @@ const FORCE_HARDWARE = String(process.env.NNOVEL_FORCE_HARDWARE || "") === "1";
 const STRICT_HARDWARE = String(process.env.NNOVEL_STRICT_HARDWARE || "") === "1";
 const NO_SANDBOX = String(process.env.NNOVEL_NO_SANDBOX || "") === "1";
 const IS_DEV = Boolean(process.env.VITE_DEV_SERVER_URL);
+const DEV_KEEPALIVE = String(process.env.NNOVEL_DEV_KEEPALIVE || "") === "1";
 const ANGLE_BACKEND = String(process.env.NNOVEL_ANGLE_BACKEND || "d3d11").trim() || "d3d11";
 const GPU_PROFILE = String(process.env.NNOVEL_GPU_PROFILE || "balanced").trim().toLowerCase();
 const GPU_DIAG = String(process.env.NNOVEL_GPU_DIAG || "") === "1";
 const GPU_VERBOSE = String(process.env.NNOVEL_GPU_VERBOSE || "") === "1";
+const GPU_DISABLED_HINT = "disabled_software";
+
+let rendererGpuHints = {
+  mode: "unknown",
+  gpuCompositing: "unknown",
+  webgl: "unknown",
+  opengl: "unknown",
+  rasterization: "unknown",
+};
+
+function deriveRendererGpuHints(featureStatus) {
+  const gpuCompositing = String((featureStatus && featureStatus.gpu_compositing) || "unknown");
+  const webgl = String((featureStatus && featureStatus.webgl) || "unknown");
+  const opengl = String((featureStatus && featureStatus.opengl) || "unknown");
+  const rasterization = String((featureStatus && featureStatus.rasterization) || "unknown");
+  const softwareMode = [gpuCompositing, webgl, opengl, rasterization]
+    .some((value) => value.toLowerCase().includes(GPU_DISABLED_HINT));
+  return {
+    mode: softwareMode ? "software" : "hardware",
+    gpuCompositing,
+    webgl,
+    opengl,
+    rasterization,
+  };
+}
+
+function setRendererGpuHints(featureStatus) {
+  rendererGpuHints = deriveRendererGpuHints(featureStatus);
+  console.log("[electron] renderer gpu hint:", rendererGpuHints);
+}
+
+function buildRendererUrl(baseUrl) {
+  const launchUrl = new URL(baseUrl);
+  launchUrl.searchParams.set("gpu_mode", rendererGpuHints.mode);
+  launchUrl.searchParams.set("gpu_compositing", rendererGpuHints.gpuCompositing);
+  launchUrl.searchParams.set("webgl", rendererGpuHints.webgl);
+  launchUrl.searchParams.set("opengl", rendererGpuHints.opengl);
+  launchUrl.searchParams.set("rasterization", rendererGpuHints.rasterization);
+  return launchUrl.toString();
+}
 
 function appendFeatureFlags(flags) {
   const current = String(app.commandLine.getSwitchValue("enable-features") || "")
@@ -97,7 +138,7 @@ function createWindow() {
     },
   });
 
-  win.loadURL(DEV_URL);
+  win.loadURL(buildRendererUrl(DEV_URL));
   win.once("ready-to-show", () => {
     win.show();
   });
@@ -132,6 +173,7 @@ app.whenReady().then(() => {
   console.log("[electron] disable-software-rasterizer switch:", app.commandLine.hasSwitch("disable-software-rasterizer"));
   const gpuStatusEarly = app.getGPUFeatureStatus();
   console.log("[electron] GPU feature status (early):", gpuStatusEarly);
+  setRendererGpuHints(gpuStatusEarly);
 
   if (GPU_DIAG || GPU_VERBOSE) {
     // basic returns immediately (before GPU process init)
@@ -164,6 +206,7 @@ app.whenReady().then(() => {
       // Re-check feature status AFTER GPU process is ready
       const gpuStatusLate = app.getGPUFeatureStatus();
       console.log("[electron] GPU feature status (after GPU init):", gpuStatusLate);
+      setRendererGpuHints(gpuStatusLate);
     }).catch((err) => {
       console.error("[electron] GPU info (complete) failed:", err);
     });
@@ -181,5 +224,13 @@ app.on("before-quit", () => {
 app.on("window-all-closed", () => {
   if (recoveringRenderer) return;
   if (process.platform === "darwin") return;
+  if (IS_DEV && DEV_KEEPALIVE && !quittingByUser) {
+    setTimeout(() => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    }, 260);
+    return;
+  }
   app.quit();
 });
