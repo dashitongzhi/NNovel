@@ -8,6 +8,7 @@ import { ModalHost } from "@/components/modals/ModalHost";
 import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
 import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
+import { BACKGROUND_LIBRARY, DEFAULT_BACKGROUND_ID } from "@/config/backgroundLibrary";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
 import { useGenerationStore } from "@/stores/generationStore";
@@ -62,6 +63,7 @@ function modelForMode(config: AppConfig, mode: AppConfig["engine_mode"]): string
 const CACHE_BOX_ENABLED_KEY = "writer:cacheBoxEnabled";
 const CACHE_BOX_EXPANDED_KEY = "writer:cacheBoxExpanded";
 const STAGE_TIMELINE_ENABLED_KEY = "writer:stageTimelineEnabled";
+const BACKGROUND_IMAGE_KEY = "writer:backgroundImage";
 const DOUBAO_DEFAULT_MODELS = [
   "doubao-seed-1-6-251015",
   "doubao-seed-1-6-lite-251015",
@@ -373,6 +375,12 @@ function App() {
     if (raw === "light" || raw === "dark" || raw === "auto") return raw;
     return "auto";
   });
+  const [activeBackgroundId, setActiveBackgroundId] = useState<string>(() => {
+    const fallback = DEFAULT_BACKGROUND_ID;
+    const raw = String(localStorage.getItem(BACKGROUND_IMAGE_KEY) || "").trim();
+    if (!raw) return fallback;
+    return BACKGROUND_LIBRARY.some((item) => item.id === raw) ? raw : fallback;
+  });
 
   const [cacheEnabled, setCacheEnabled] = useState(() => readBoolSetting(CACHE_BOX_ENABLED_KEY, true));
   const [cacheExpanded, setCacheExpanded] = useState(() => readBoolSetting(CACHE_BOX_EXPANDED_KEY, true));
@@ -568,6 +576,14 @@ function App() {
       void reloadBookshelf();
     }
   }, [configStore.config.first_run_required]);
+
+  useEffect(() => {
+    if (!activeBackgroundId) {
+      localStorage.removeItem(BACKGROUND_IMAGE_KEY);
+      return;
+    }
+    localStorage.setItem(BACKGROUND_IMAGE_KEY, activeBackgroundId);
+  }, [activeBackgroundId]);
 
   useEffect(() => {
     if (!outlineOpen) return;
@@ -1170,6 +1186,12 @@ function App() {
     setSettingsOpen(false);
   };
 
+  const applyBackgroundImage = (id: string): void => {
+    if (!BACKGROUND_LIBRARY.some((item) => item.id === id)) return;
+    setActiveBackgroundId(id);
+    ui.addToast("背景已应用", "success");
+  };
+
   const saveDoubaoConfigFromModal = async (): Promise<void> => {
     const normalized = normalizeModelList(doubaoModelEditorRows.join("\n"), "doubao-seed-1-6-251015");
     if (!normalized.length) {
@@ -1667,12 +1689,37 @@ function App() {
     });
   };
 
-  const appClassName = [ui.sidebarCollapsed ? "sidebar-collapsed" : "", engineSwitching ? "engine-switching" : ""]
+  const softwareGpuMode = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    const gpuMode = String(params.get("gpu_mode") || "").toLowerCase();
+    const gpuCompositing = String(params.get("gpu_compositing") || "").toLowerCase();
+    const webgl = String(params.get("webgl") || "").toLowerCase();
+    if (gpuMode === "software") return true;
+    if (gpuCompositing.includes("disabled")) return true;
+    if (webgl.includes("disabled")) return true;
+    return false;
+  }, []);
+
+  const appClassName = [ui.sidebarCollapsed ? "sidebar-collapsed" : "", engineSwitching ? "engine-switching" : "", softwareGpuMode ? "software-gpu" : ""]
     .filter(Boolean)
     .join(" ");
+  const activeBackground = useMemo(
+    () => BACKGROUND_LIBRARY.find((item) => item.id === activeBackgroundId) || BACKGROUND_LIBRARY[0] || null,
+    [activeBackgroundId],
+  );
+  const activeBackgroundStyle = useMemo(
+    () => ({
+      backgroundImage: activeBackground ? `url("${activeBackground.url}")` : "none",
+    }),
+    [activeBackground],
+  );
 
   return (
     <>
+      <div id="app-background-layer" className={softwareGpuMode ? "software-gpu" : ""} style={activeBackgroundStyle} aria-hidden="true" />
+      <div id="app-background-vignette" aria-hidden="true" />
+
       <div id="app" className={appClassName}>
         <Sidebar
           config={configStore.config}
@@ -1831,6 +1878,38 @@ function App() {
                 </label>
               </div>
               <p className="settings-desc">选择界面的外观风格，"跟随系统"将自动匹配您的操作系统设置。</p>
+            </div>
+
+            <div className="settings-section">
+              <h4>背景图库</h4>
+              {BACKGROUND_LIBRARY.length ? (
+                <div className="background-picker-grid">
+                  {BACKGROUND_LIBRARY.map((item) => {
+                    const active = item.id === activeBackgroundId;
+                    return (
+                      <div key={item.id} className={`background-picker-item ${active ? "active" : ""}`}>
+                        <div className="background-picker-thumb-wrap">
+                          <img className="background-picker-thumb" src={item.url} alt={item.name} loading="lazy" decoding="async" />
+                        </div>
+                        <div className="background-picker-meta">
+                          <span className="background-picker-title" title={item.name}>{item.name}</span>
+                          <button
+                            className={`btn btn-sm background-picker-apply ${active ? "btn-success" : "btn-primary"}`}
+                            type="button"
+                            onClick={() => applyBackgroundImage(item.id)}
+                            disabled={active}
+                          >
+                            {active ? "当前背景" : "设为背景"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="settings-desc">未检测到背景图片，请将图片放入项目根目录的 background 文件夹。</p>
+              )}
+              <p className="settings-desc">背景会固定在界面最底层，并强化 Liquid Glass 的折射层次。</p>
             </div>
 
             <div className="settings-section">

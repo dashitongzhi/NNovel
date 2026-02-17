@@ -32,17 +32,37 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const toolbarLike = className.includes("liquid-glass-toolbar-shell");
 
-  // Only toolbar uses the full LiquidGlass runtime (small surface, single instance).
-  // Cards always use the lightweight CSS static glass fill — the library's SVG
-  // filter pipeline renders extra border/overlay elements (default 270×69) that
-  // create visible artefacts on large panels, and mount/unmount causes flicker.
-  const useLiquidRuntime = toolbarLike;
+  const forceStaticByRuntime = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    const gpuMode = String(params.get("gpu_mode") || "").toLowerCase();
+    const gpuCompositing = String(params.get("gpu_compositing") || "").toLowerCase();
+    const webgl = String(params.get("webgl") || "").toLowerCase();
+    if (gpuMode === "software") return true;
+    if (gpuCompositing.includes("disabled")) return true;
+    if (webgl.includes("disabled")) return true;
+    return false;
+  }, []);
+
+  // In software-render mode, force static fill for all surfaces (including toolbar)
+  // to avoid SVG filter + displacement cost.
+  const softwareStaticSurface = forceStaticByRuntime;
+  const freezeMotion = forceStaticByRuntime || !dynamic;
+  const useLiquidRuntime = !softwareStaticSurface;
 
   const profilePreset = toolbarLike ? DEMO_BUTTON_PRESET : GLOBAL_LIQUID_PRESETS[liquidProfile];
   const activePreset = useMemo(() => {
-    if (dynamic && toolbarLike) return profilePreset;
-    return { ...profilePreset, elasticity: 0 };
-  }, [dynamic, toolbarLike, profilePreset]);
+    if (!freezeMotion) return profilePreset;
+    return {
+      ...profilePreset,
+      displacementScale: Math.max(28, Math.round(profilePreset.displacementScale * 0.64)),
+      blurAmount: Math.max(0.045, profilePreset.blurAmount),
+      saturation: Math.max(128, profilePreset.saturation),
+      aberrationIntensity: Math.max(0.85, profilePreset.aberrationIntensity * 0.56),
+      elasticity: 0,
+      mode: profilePreset.mode === "shader" ? "standard" : profilePreset.mode,
+    };
+  }, [freezeMotion, profilePreset]);
 
   const resolvedCornerRadius = useMemo(() => {
     if (typeof cornerRadius === "number") return cornerRadius;
@@ -52,21 +72,12 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
     return 16;
   }, [className, cornerRadius]);
 
-  // ── Memoised glass layers ───────────────────────────────────────────
-  // Locking the JSX reference prevents React reconciliation from touching
-  // the cover / glass DOM nodes when only *children* change (button clicks,
-  // text updates, etc.).  Untouched DOM ⇒ no compositor dirty-rect ⇒
-  // Chromium never invalidates the backdrop-filter ⇒ zero flicker.
   const glassLayers = useMemo(
     () => (
       <>
-        {/* Cover: stable backdrop-filter + solid-colour fallback.
-            Even if Chromium briefly drops the filter the opaque background
-            prevents the raw page content from flashing through. */}
         <div className="liquid-glass-cover" aria-hidden="true" />
-
         <div
-          className={`liquid-glass-layer ${interactive ? "interactive" : ""}`.trim()}
+          className={`liquid-glass-layer ${interactive ? "interactive" : ""} ${useLiquidRuntime ? "" : "compat-mode"}`.trim()}
           aria-hidden="true"
         >
           {useLiquidRuntime ? (
@@ -81,9 +92,9 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
               cornerRadius={resolvedCornerRadius}
               padding="0px"
               overLight={overLight}
-              mouseContainer={dynamic ? frameRef : null}
-              globalMousePos={dynamic ? undefined : { x: 0, y: 0 }}
-              mouseOffset={dynamic ? undefined : { x: 0, y: 0 }}
+              mouseContainer={freezeMotion ? null : frameRef}
+              globalMousePos={freezeMotion ? { x: 0, y: 0 } : undefined}
+              mouseOffset={freezeMotion ? { x: 0, y: 0 } : undefined}
               style={{
                 position: "absolute",
                 width: "100%",
@@ -100,16 +111,14 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
         </div>
       </>
     ),
-    // frameRef identity is stable (useRef); only re-create when glass
-    // config actually changes — children changes are excluded.
-    [useLiquidRuntime, activePreset, resolvedCornerRadius, overLight, dynamic, interactive],
+    [useLiquidRuntime, activePreset, resolvedCornerRadius, overLight, freezeMotion, interactive],
   );
 
   return (
     <div
       id={id}
       ref={frameRef}
-      className={`liquid-glass-frame ${className}`.trim()}
+      className={`liquid-glass-frame ${useLiquidRuntime ? "" : "compat-mode"} ${className}`.trim()}
       style={style}
     >
       {glassLayers}
