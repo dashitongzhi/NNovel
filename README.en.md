@@ -1,4 +1,4 @@
-# NNovel React (Liquid Glass UI)
+# NNovel
 
 ## English Documentation (EN)
 
