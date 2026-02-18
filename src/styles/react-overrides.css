@@ -127,9 +127,65 @@
 }
 
 #toolbar-status-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(244, 249, 255, 0.32));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 24px rgba(22, 38, 64, 0.14);
+  backdrop-filter: blur(20px) saturate(1.06);
+  -webkit-backdrop-filter: blur(20px) saturate(1.06);
   overflow: visible;
   max-width: none;
   flex-wrap: wrap;
+}
+
+#toolbar-status-bar .toolbar-status-chip {
+  border: 1px solid rgba(162, 186, 226, 0.48);
+  border-radius: 999px;
+}
+
+[data-theme="dark"] #toolbar-status-bar {
+  border-color: rgba(150, 184, 239, 0.42);
+  background: linear-gradient(145deg, rgba(44, 69, 103, 0.76), rgba(20, 37, 60, 0.58));
+  box-shadow:
+    inset 0 1px 0 rgba(209, 229, 255, 0.18),
+    inset 0 -1px 0 rgba(112, 148, 206, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme="dark"] #toolbar-status-bar .toolbar-status-chip {
+  border-color: rgba(146, 181, 231, 0.48);
+}
+
+#app.ui-clone-mode #toolbar-status-bar {
+  border-color: rgba(255, 255, 255, 0.62);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.54), rgba(243, 249, 255, 0.28));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.24),
+    0 12px 24px rgba(20, 35, 58, 0.18);
+}
+
+#app.ui-clone-mode #toolbar-status-bar .toolbar-status-chip {
+  border-color: rgba(174, 200, 238, 0.54);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(242, 248, 255, 0.32));
+}
+
+[data-theme="dark"] #app.ui-clone-mode #toolbar-status-bar {
+  border-color: rgba(170, 203, 247, 0.48);
+  background: linear-gradient(150deg, rgba(56, 85, 124, 0.74), rgba(24, 43, 68, 0.56));
+}
+
+[data-theme="dark"] #app.ui-clone-mode #toolbar-status-bar .toolbar-status-chip {
+  border-color: rgba(156, 191, 241, 0.5);
+  background: linear-gradient(145deg, rgba(70, 103, 148, 0.52), rgba(28, 48, 76, 0.36));
 }
 
 #toolbar-status-current-model {
@@ -800,18 +856,20 @@
   --input-bg: rgba(250, 253, 255, 0.62);
   --input-focus-bg: rgba(255, 255, 255, 0.82);
   --shadow-card: 0 14px 40px rgba(18, 34, 63, 0.14);
+  --user-font-scale: 1;
+  --user-font-weight: 400;
 }
 
 [data-theme="dark"] {
-  --bg-primary: #0b111c;
-  --bg-card: rgba(20, 31, 49, 0.66);
-  --bg-sidebar: rgba(14, 24, 40, 0.72);
-  --glass-border: rgba(173, 205, 255, 0.18);
-  --glass-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  --border-color: rgba(132, 161, 205, 0.28);
-  --input-bg: rgba(22, 37, 59, 0.58);
-  --input-focus-bg: rgba(30, 49, 76, 0.78);
-  --shadow-card: 0 18px 48px rgba(0, 0, 0, 0.48);
+  --bg-primary: #070d17;
+  --bg-card: rgba(16, 25, 40, 0.76);
+  --bg-sidebar: rgba(9, 16, 27, 0.84);
+  --glass-border: rgba(167, 201, 255, 0.24);
+  --glass-shadow: 0 24px 64px rgba(0, 0, 0, 0.56);
+  --border-color: rgba(140, 172, 223, 0.36);
+  --input-bg: rgba(18, 32, 52, 0.72);
+  --input-focus-bg: rgba(26, 45, 74, 0.88);
+  --shadow-card: 0 20px 54px rgba(0, 0, 0, 0.52);
 }
 
 body {
@@ -824,9 +882,9 @@ body {
 
 [data-theme="dark"] body {
   background-image:
-    radial-gradient(860px 620px at -16% -14%, rgba(58, 126, 255, 0.24), transparent 60%),
-    radial-gradient(760px 600px at 110% 112%, rgba(17, 183, 153, 0.19), transparent 56%),
-    radial-gradient(800px 700px at 52% 124%, rgba(76, 106, 255, 0.15), transparent 68%);
+    radial-gradient(860px 620px at -16% -14%, rgba(63, 133, 255, 0.22), transparent 60%),
+    radial-gradient(760px 600px at 110% 112%, rgba(15, 178, 149, 0.17), transparent 56%),
+    radial-gradient(800px 700px at 52% 124%, rgba(71, 102, 248, 0.16), transparent 68%);
 }
 
 #app,
@@ -838,6 +896,8 @@ body {
 #app {
   position: relative;
   z-index: 1;
+  font-size: calc(15px * var(--user-font-scale));
+  font-weight: var(--user-font-weight);
 }
 
 .sidebar {
@@ -849,6 +909,312 @@ body {
 [data-theme="dark"] .sidebar {
   background: linear-gradient(168deg, rgba(20, 34, 55, 0.72), rgba(10, 20, 36, 0.56));
   box-shadow: 16px 0 44px rgba(0, 0, 0, 0.36);
+}
+
+#config-panel .panel-section h3 {
+  color: #11151c;
+  font-size: calc(15px * var(--user-font-scale));
+  font-weight: 700;
+}
+
+[data-theme="dark"] #config-panel .panel-section h3 {
+  color: rgba(244, 248, 255, 0.96);
+}
+
+.settings-label {
+  font-size: calc(13px * var(--user-font-scale));
+}
+
+.settings-desc,
+.settings-value {
+  font-size: calc(12px * var(--user-font-scale));
+}
+
+.settings-control .config-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-control .ios-range {
+  --range-progress: 50%;
+  --range-track-height: 11px;
+  --range-fill: rgba(14, 146, 255, 0.96);
+  --range-rest: rgba(220, 226, 237, 0.92);
+  --range-thumb-width: 54px;
+  --range-thumb-height: 36px;
+  --range-thumb-offset: -13px;
+  -webkit-appearance: none;
+  appearance: none;
+  width: min(232px, 58vw);
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+.settings-control .ios-range.is-sliding {
+  --range-thumb-width: 70px;
+  --range-thumb-height: 46px;
+  --range-thumb-offset: -18px;
+}
+
+.settings-control .ios-range:focus {
+  outline: none;
+}
+
+.settings-control .ios-range::-webkit-slider-runnable-track {
+  height: var(--range-track-height);
+  border-radius: 999px;
+  border: 1px solid rgba(170, 188, 216, 0.58);
+  background:
+    linear-gradient(90deg, var(--range-fill) 0, var(--range-fill) var(--range-progress), var(--range-rest) var(--range-progress), var(--range-rest) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    inset 0 -1px 0 rgba(150, 169, 198, 0.38);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.settings-control .ios-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--range-thumb-width);
+  height: var(--range-thumb-height);
+  margin-top: var(--range-thumb-offset);
+  border-radius: 22px;
+  border: 1px solid rgba(168, 186, 214, 0.76);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.86) 58%, rgba(234, 242, 252, 0.72)),
+    radial-gradient(128% 88% at 24% 16%, rgba(255, 255, 255, 0.92), transparent 60%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(195, 214, 241, 0.64),
+    0 10px 22px rgba(18, 36, 64, 0.2);
+  transition:
+    width 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    height 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    margin-top 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    border-radius 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+  transform: translateZ(0);
+}
+
+.settings-control .ios-range.is-sliding::-webkit-slider-runnable-track {
+  border-color: rgba(146, 178, 224, 0.78);
+}
+
+.settings-control .ios-range.is-sliding::-webkit-slider-thumb {
+  border-radius: 25px;
+  border-color: rgba(140, 184, 246, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(239, 248, 255, 0.62) 58%, rgba(220, 235, 252, 0.48)),
+    radial-gradient(132% 90% at 22% 14%, rgba(255, 255, 255, 0.86), transparent 58%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(171, 203, 246, 0.72),
+    0 14px 30px rgba(20, 40, 68, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.settings-control .ios-range::-moz-range-track {
+  height: var(--range-track-height);
+  border-radius: 999px;
+  border: 1px solid rgba(170, 188, 216, 0.58);
+  background: var(--range-rest);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    inset 0 -1px 0 rgba(150, 169, 198, 0.38);
+}
+
+.settings-control .ios-range::-moz-range-progress {
+  height: var(--range-track-height);
+  border-radius: 999px;
+  background: var(--range-fill);
+}
+
+.settings-control .ios-range::-moz-range-thumb {
+  width: var(--range-thumb-width);
+  height: var(--range-thumb-height);
+  border-radius: 22px;
+  border: 1px solid rgba(168, 186, 214, 0.76);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.86) 58%, rgba(234, 242, 252, 0.72)),
+    radial-gradient(128% 88% at 24% 16%, rgba(255, 255, 255, 0.92), transparent 60%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(195, 214, 241, 0.64),
+    0 10px 22px rgba(18, 36, 64, 0.2);
+  transition:
+    width 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    height 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    border-radius 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.settings-control .ios-range.is-sliding::-moz-range-track {
+  border-color: rgba(146, 178, 224, 0.78);
+}
+
+.settings-control .ios-range.is-sliding::-moz-range-thumb {
+  border-radius: 25px;
+  border-color: rgba(140, 184, 246, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(239, 248, 255, 0.62) 58%, rgba(220, 235, 252, 0.48)),
+    radial-gradient(132% 90% at 22% 14%, rgba(255, 255, 255, 0.86), transparent 58%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(171, 203, 246, 0.72),
+    0 14px 30px rgba(20, 40, 68, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.settings-control .range-value {
+  min-width: 62px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 10px;
+  border: 1px solid rgba(161, 183, 218, 0.44);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.64), rgba(244, 249, 255, 0.34));
+}
+
+[data-theme="dark"] .settings-control .ios-range::-webkit-slider-runnable-track {
+  border-color: rgba(131, 164, 210, 0.64);
+  background:
+    linear-gradient(90deg, rgba(62, 168, 255, 0.96) 0, rgba(62, 168, 255, 0.96) var(--range-progress), rgba(88, 111, 147, 0.78) var(--range-progress), rgba(88, 111, 147, 0.78) 100%),
+    linear-gradient(180deg, rgba(215, 232, 255, 0.18), rgba(215, 232, 255, 0));
+  box-shadow:
+    inset 0 1px 0 rgba(204, 226, 255, 0.34),
+    inset 0 -1px 0 rgba(101, 130, 176, 0.44);
+}
+
+[data-theme="dark"] .settings-control .ios-range::-webkit-slider-thumb {
+  border-color: rgba(149, 188, 238, 0.76);
+  background:
+    linear-gradient(180deg, rgba(240, 249, 255, 0.96), rgba(197, 221, 249, 0.8) 58%, rgba(157, 190, 231, 0.62)),
+    radial-gradient(130% 88% at 24% 16%, rgba(250, 253, 255, 0.88), transparent 60%);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 251, 255, 0.86),
+    inset 0 -1px 0 rgba(172, 205, 247, 0.64),
+    0 12px 26px rgba(0, 0, 0, 0.46);
+}
+
+[data-theme="dark"] .settings-control .ios-range.is-sliding::-webkit-slider-thumb {
+  border-color: rgba(173, 212, 255, 0.92);
+  background:
+    linear-gradient(180deg, rgba(224, 242, 255, 0.78), rgba(170, 206, 248, 0.62) 58%, rgba(126, 169, 223, 0.46)),
+    radial-gradient(132% 90% at 22% 14%, rgba(248, 252, 255, 0.82), transparent 58%);
+  box-shadow:
+    inset 0 1px 0 rgba(248, 253, 255, 0.86),
+    inset 0 -1px 0 rgba(176, 214, 255, 0.68),
+    0 18px 36px rgba(0, 0, 0, 0.54),
+    0 0 0 1px rgba(194, 223, 255, 0.28);
+}
+
+[data-theme="dark"] .settings-control .ios-range::-moz-range-track {
+  border-color: rgba(131, 164, 210, 0.64);
+  background: rgba(88, 111, 147, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(204, 226, 255, 0.34),
+    inset 0 -1px 0 rgba(101, 130, 176, 0.44);
+}
+
+[data-theme="dark"] .settings-control .ios-range::-moz-range-progress {
+  background: rgba(62, 168, 255, 0.96);
+}
+
+[data-theme="dark"] .settings-control .ios-range::-moz-range-thumb {
+  border-color: rgba(149, 188, 238, 0.76);
+  background:
+    linear-gradient(180deg, rgba(240, 249, 255, 0.96), rgba(197, 221, 249, 0.8) 58%, rgba(157, 190, 231, 0.62)),
+    radial-gradient(130% 88% at 24% 16%, rgba(250, 253, 255, 0.88), transparent 60%);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 251, 255, 0.86),
+    inset 0 -1px 0 rgba(172, 205, 247, 0.64),
+    0 12px 26px rgba(0, 0, 0, 0.46);
+}
+
+[data-theme="dark"] .settings-control .ios-range.is-sliding::-moz-range-thumb {
+  border-color: rgba(173, 212, 255, 0.92);
+  background:
+    linear-gradient(180deg, rgba(224, 242, 255, 0.78), rgba(170, 206, 248, 0.62) 58%, rgba(126, 169, 223, 0.46)),
+    radial-gradient(132% 90% at 22% 14%, rgba(248, 252, 255, 0.82), transparent 58%);
+  box-shadow:
+    inset 0 1px 0 rgba(248, 253, 255, 0.86),
+    inset 0 -1px 0 rgba(176, 214, 255, 0.68),
+    0 18px 36px rgba(0, 0, 0, 0.54),
+    0 0 0 1px rgba(194, 223, 255, 0.28);
+}
+
+[data-theme="dark"] .settings-control .range-value {
+  border-color: rgba(129, 164, 216, 0.5);
+  background: linear-gradient(145deg, rgba(44, 70, 106, 0.68), rgba(22, 38, 61, 0.44));
+}
+
+.settings-color-input {
+  width: 44px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.settings-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.settings-color-input::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.btn {
+  font-size: calc(14px * var(--user-font-scale));
+}
+
+.btn-sm {
+  font-size: calc(12px * var(--user-font-scale));
+}
+
+#draft-content,
+.content-area,
+.chapter-preview-text {
+  font-size: calc(17px * var(--user-font-scale));
+  font-weight: var(--user-font-weight);
+}
+
+.settings-label,
+.settings-desc,
+.settings-value {
+  font-weight: var(--user-font-weight);
+}
+
+#config-panel .panel-actions .btn {
+  color: #f4f9ff;
+}
+
+html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .btn {
+  color: rgba(244, 248, 255, 0.96);
+}
+
+#doubao-settings .config-hint {
+  color: #11151c;
+}
+
+[data-theme="dark"] #doubao-settings .config-hint {
+  color: rgba(244, 248, 255, 0.94);
 }
 
 .card,
@@ -873,6 +1239,176 @@ body {
     var(--bg-card);
 }
 
+/* Strong frosted dropdowns (model ID / reasoning / toolbar model menu):
+   keep color blocks visible while hiding readable text underneath. */
+#app #config-panel .config-select-menu,
+#app #engine-picker-menu.engine-picker-menu {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  overflow: hidden;
+  transform-origin: top center;
+  transform: translate3d(0, 0, 0);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  contain: layout paint style;
+  background: rgba(248, 251, 255, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.18),
+    0 18px 38px rgba(22, 38, 64, 0.2);
+  will-change: transform, opacity;
+}
+
+#app #config-panel .config-select-menu::before,
+#app #engine-picker-menu.engine-picker-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.68), rgba(242, 247, 255, 0.54));
+  backdrop-filter: blur(34px) saturate(1.08) contrast(0.52) brightness(1.04);
+  -webkit-backdrop-filter: blur(34px) saturate(1.08) contrast(0.52) brightness(1.04);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+#app #config-panel .config-select-menu > *,
+#app #engine-picker-menu.engine-picker-menu > * {
+  position: relative;
+  z-index: 1;
+}
+
+#app #config-panel .config-select-menu {
+  top: calc(100% + 6px);
+}
+
+#app #engine-picker-menu.engine-picker-menu {
+  top: calc(100% + 6px);
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  min-width: 142px;
+  width: min(178px, max-content);
+  max-width: 178px;
+}
+
+[data-theme="dark"] #app #config-panel .config-select-menu,
+[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu {
+  background: rgba(25, 38, 57, 0.52);
+  border-color: rgba(180, 210, 251, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(206, 228, 255, 0.22),
+    inset 0 -1px 0 rgba(126, 162, 216, 0.14),
+    0 20px 42px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] #app #config-panel .config-select-menu::before,
+[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu::before {
+  background: linear-gradient(160deg, rgba(104, 136, 185, 0.5), rgba(31, 49, 76, 0.48));
+  backdrop-filter: blur(36px) saturate(1.1) contrast(0.5) brightness(1.03);
+  -webkit-backdrop-filter: blur(36px) saturate(1.1) contrast(0.5) brightness(1.03);
+}
+
+/* GPU-friendly dropdown motion: transform + opacity only. */
+@keyframes ios-glass-dropdown-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -16px, 0) scale3d(0.94, 0.84, 1);
+  }
+  62% {
+    opacity: 1;
+    transform: translate3d(0, 1px, 0) scale3d(1.01, 1.005, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@keyframes ios-glass-dropdown-in-center {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -16px, 0) scale3d(0.94, 0.84, 1);
+  }
+  62% {
+    opacity: 1;
+    transform: translate3d(-50%, 1px, 0) scale3d(1.01, 1.005, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@keyframes ios-glass-dropdown-surface {
+  0% {
+    opacity: 0.82;
+    transform: translate3d(0, -8px, 0) scale3d(0.95, 0.9, 1);
+  }
+  68% {
+    opacity: 0.98;
+    transform: translate3d(0, 1px, 0) scale3d(1.01, 1.005, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+#app #config-panel .config-select-menu:not(.hidden) {
+  animation: ios-glass-dropdown-in 250ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+#app #engine-picker-menu.engine-picker-menu:not(.hidden) {
+  animation: ios-glass-dropdown-in-center 260ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+#app #config-panel .config-select-menu:not(.hidden)::before,
+#app #engine-picker-menu.engine-picker-menu:not(.hidden)::before {
+  animation: ios-glass-dropdown-surface 260ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+#app #config-panel .config-select-menu.hidden,
+#app #engine-picker-menu.engine-picker-menu.hidden {
+  display: none !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none !important;
+}
+#app #config-panel .config-select-option,
+#app #engine-picker-menu.engine-picker-menu button {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+#app #config-panel .config-select-option:hover,
+#app #engine-picker-menu.engine-picker-menu button:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.48);
+}
+
+[data-theme="dark"] #app #config-panel .config-select-option,
+[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu button {
+  background: rgba(184, 213, 255, 0.16);
+  border-color: rgba(160, 191, 236, 0.32);
+}
+
+[data-theme="dark"] #app #config-panel .config-select-option:hover,
+[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu button:hover {
+  background: rgba(197, 223, 255, 0.24);
+  border-color: rgba(184, 214, 255, 0.42);
+}
+
 .liquid-glass-frame.card {
   background: transparent;
   border-color: rgba(174, 194, 228, 0.36);
@@ -891,7 +1427,7 @@ body {
 
 [data-theme="dark"] .card-header,
 [data-theme="dark"] .card-footer {
-  background: linear-gradient(180deg, rgba(153, 189, 242, 0.08), rgba(153, 189, 242, 0.02));
+  background: linear-gradient(180deg, rgba(149, 184, 240, 0.14), rgba(149, 184, 240, 0.04));
 }
 
 .btn {
@@ -937,8 +1473,8 @@ body {
 [data-theme="dark"] .toolbar-btn,
 [data-theme="dark"] .config-select-btn,
 [data-theme="dark"] .settings-entry-btn {
-  background: linear-gradient(145deg, rgba(41, 66, 101, 0.52), rgba(20, 35, 56, 0.34));
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.36);
+  background: linear-gradient(145deg, rgba(43, 68, 104, 0.62), rgba(20, 36, 58, 0.42));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.44);
 }
 
 .icon-btn:hover,
@@ -947,6 +1483,24 @@ body {
 .config-select-btn:hover,
 .settings-entry-btn:hover {
   border-color: rgba(104, 162, 255, 0.46);
+}
+
+.settings-modal-header-icon-btn.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+}
+
+.settings-back-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: translateX(-0.5px);
 }
 
 textarea,
@@ -1021,6 +1575,398 @@ textarea:focus,
   background: linear-gradient(155deg, rgba(32, 53, 82, 0.52), rgba(18, 33, 55, 0.3));
 }
 
+[data-theme="dark"] .settings-desc,
+[data-theme="dark"] .settings-value,
+[data-theme="dark"] .status-text {
+  color: rgba(229, 238, 254, 0.78);
+}
+
+[data-theme="dark"] .card-header h3,
+[data-theme="dark"] .card-footer,
+[data-theme="dark"] .settings-label {
+  color: rgba(241, 247, 255, 0.96);
+}
+
+[data-theme="dark"] .theme-label {
+  border-color: rgba(150, 184, 239, 0.28);
+  background: linear-gradient(148deg, rgba(39, 62, 95, 0.7), rgba(18, 34, 56, 0.48));
+}
+
+[data-theme="dark"] .theme-option input[type="radio"]:checked + .theme-label {
+  border-color: rgba(95, 162, 255, 0.78);
+  background: linear-gradient(148deg, rgba(52, 93, 152, 0.62), rgba(27, 53, 86, 0.42));
+  color: rgba(220, 237, 255, 0.98);
+}
+
+.clone-mode-entry-btn.active {
+  border-color: rgba(80, 165, 255, 0.72);
+  box-shadow: 0 10px 24px rgba(49, 124, 224, 0.24);
+}
+
+[data-theme="dark"] .clone-mode-entry-btn.active {
+  border-color: rgba(110, 182, 255, 0.72);
+  box-shadow: 0 12px 28px rgba(26, 82, 162, 0.34);
+}
+
+#app-background-layer.ui-clone-mode {
+  filter: saturate(1.1) contrast(1.06);
+  transform: scale(1.018);
+  background-position: center top;
+}
+
+#app-background-vignette.ui-clone-mode {
+  background:
+    radial-gradient(120% 94% at 50% 118%, rgba(4, 10, 19, 0.54), transparent 58%),
+    linear-gradient(180deg, rgba(4, 11, 22, 0.24), rgba(4, 11, 22, 0.08));
+}
+
+#app.ui-clone-mode {
+  --bg-card: rgba(236, 244, 255, 0.2);
+  --glass-border: rgba(255, 255, 255, 0.32);
+  --border-color: rgba(176, 199, 232, 0.42);
+}
+
+[data-theme="dark"] #app.ui-clone-mode {
+  --bg-card: rgba(14, 22, 35, 0.46);
+  --glass-border: rgba(205, 226, 255, 0.24);
+  --border-color: rgba(149, 181, 224, 0.38);
+}
+
+/* Strict clone mode: section surfaces closer to liquid-glass-react info-card look. */
+#app.ui-clone-mode #config-panel .panel-section,
+#app.ui-clone-mode .settings-section,
+#app.ui-clone-mode .outline-section,
+#app.ui-clone-mode .book-card,
+#app.ui-clone-mode .chapter-item-card,
+#app.ui-clone-mode .chapter-preview-body,
+#app.ui-clone-mode .consistency-conflict-list,
+#app.ui-clone-mode .memory-preview-list,
+#app.ui-clone-mode .discarded-item,
+#app.ui-clone-mode .model-health-table-wrap {
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 24px;
+  background: linear-gradient(154deg, rgba(255, 255, 255, 0.46), rgba(244, 249, 255, 0.26));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 18px 34px rgba(22, 38, 64, 0.2);
+  backdrop-filter: blur(30px) saturate(1.08);
+  -webkit-backdrop-filter: blur(30px) saturate(1.08);
+}
+
+#app.ui-clone-mode #config-panel .panel-section {
+  padding: 12px 12px 10px;
+}
+
+/* Clone mode: sidebar inputs should match section corner radius. */
+#app.ui-clone-mode #config-panel .config-input,
+#app.ui-clone-mode #config-panel .config-select-btn,
+#app.ui-clone-mode #config-panel .large-input,
+#app.ui-clone-mode #config-panel .settings-number-input,
+#app.ui-clone-mode #config-panel .outline-input,
+#app.ui-clone-mode #config-panel .outline-text-input,
+#app.ui-clone-mode #config-panel textarea {
+  border-radius: 24px;
+}
+
+[data-theme="dark"] #app.ui-clone-mode #config-panel .panel-section,
+[data-theme="dark"] #app.ui-clone-mode .settings-section,
+[data-theme="dark"] #app.ui-clone-mode .outline-section,
+[data-theme="dark"] #app.ui-clone-mode .book-card,
+[data-theme="dark"] #app.ui-clone-mode .chapter-item-card,
+[data-theme="dark"] #app.ui-clone-mode .chapter-preview-body,
+[data-theme="dark"] #app.ui-clone-mode .consistency-conflict-list,
+[data-theme="dark"] #app.ui-clone-mode .memory-preview-list,
+[data-theme="dark"] #app.ui-clone-mode .discarded-item,
+[data-theme="dark"] #app.ui-clone-mode .model-health-table-wrap {
+  border-color: rgba(170, 203, 247, 0.3);
+  background: linear-gradient(154deg, rgba(54, 84, 124, 0.46), rgba(20, 37, 60, 0.3));
+  box-shadow:
+    inset 0 1px 0 rgba(194, 221, 255, 0.2),
+    0 20px 36px rgba(0, 0, 0, 0.46);
+}
+
+#app.ui-clone-mode #draft-box.liquid-glass-frame.card,
+#app.ui-clone-mode #generation-area.liquid-glass-frame.card,
+#app.ui-clone-mode #cache-box.liquid-glass-frame.card,
+#app.ui-clone-mode .discarded-panel-card.liquid-glass-frame.card {
+  border-color: rgba(255, 255, 255, 0.64) !important;
+  border-radius: 32px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.54),
+    0 22px 44px rgba(22, 38, 64, 0.24);
+}
+
+#app.ui-clone-mode #draft-box .liquid-glass-content,
+#app.ui-clone-mode #generation-area .liquid-glass-content,
+#app.ui-clone-mode #cache-box .liquid-glass-content,
+#app.ui-clone-mode .discarded-panel-card .liquid-glass-content {
+  color: rgba(250, 253, 255, 0.98);
+}
+
+#app.ui-clone-mode #draft-box.liquid-glass-frame::before,
+#app.ui-clone-mode #generation-area.liquid-glass-frame::before,
+#app.ui-clone-mode #cache-box.liquid-glass-frame::before,
+#app.ui-clone-mode .discarded-panel-card.liquid-glass-frame::before {
+  background: rgba(243, 249, 255, 0.24);
+}
+
+#app.ui-clone-mode #draft-box .liquid-glass-static-fill,
+#app.ui-clone-mode #generation-area .liquid-glass-static-fill,
+#app.ui-clone-mode #cache-box .liquid-glass-static-fill,
+#app.ui-clone-mode .discarded-panel-card .liquid-glass-static-fill {
+  border-color: rgba(255, 255, 255, 0.62);
+  background:
+    linear-gradient(156deg, rgba(255, 255, 255, 0.42), rgba(244, 249, 255, 0.26)),
+    radial-gradient(120% 86% at 8% 4%, rgba(255, 255, 255, 0.2), transparent 56%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
+    0 14px 30px rgba(18, 34, 58, 0.22);
+}
+
+/* Reduce bright edge flashes in clone mode on draft/cache panels. */
+#app.ui-clone-mode #draft-box .liquid-glass-static-fill,
+#app.ui-clone-mode #cache-box .liquid-glass-static-fill {
+  background:
+    linear-gradient(156deg, rgba(255, 255, 255, 0.38), rgba(244, 249, 255, 0.24));
+}
+
+#app.ui-clone-mode #draft-box .card-header,
+#app.ui-clone-mode #generation-area .card-header,
+#app.ui-clone-mode #cache-box .card-header,
+#app.ui-clone-mode .discarded-panel-card .card-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.32);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(250, 253, 255, 0.14));
+  backdrop-filter: blur(20px) saturate(1.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.08);
+}
+
+/* Clone mode anti-flicker: avoid header highlight flashes while mouse moves near sidebar/scrollbar. */
+#app.ui-clone-mode #draft-box .card-header,
+#app.ui-clone-mode #cache-box .card-header {
+  transition: none !important;
+  animation: none !important;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  isolation: isolate;
+}
+
+#app.ui-clone-mode #draft-box .card-footer,
+#app.ui-clone-mode #generation-area .card-footer,
+#app.ui-clone-mode #cache-box .card-footer,
+#app.ui-clone-mode .discarded-panel-card .card-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(247, 251, 255, 0.08));
+}
+
+[data-theme="dark"] #app.ui-clone-mode #draft-box.liquid-glass-frame::before,
+[data-theme="dark"] #app.ui-clone-mode #generation-area.liquid-glass-frame::before,
+[data-theme="dark"] #app.ui-clone-mode #cache-box.liquid-glass-frame::before,
+[data-theme="dark"] #app.ui-clone-mode .discarded-panel-card.liquid-glass-frame::before {
+  background: rgba(24, 38, 61, 0.36);
+}
+
+[data-theme="dark"] #app.ui-clone-mode #draft-box .liquid-glass-static-fill,
+[data-theme="dark"] #app.ui-clone-mode #generation-area .liquid-glass-static-fill,
+[data-theme="dark"] #app.ui-clone-mode #cache-box .liquid-glass-static-fill,
+[data-theme="dark"] #app.ui-clone-mode .discarded-panel-card .liquid-glass-static-fill {
+  border-color: rgba(170, 203, 248, 0.32);
+  background:
+    linear-gradient(156deg, rgba(62, 93, 136, 0.42), rgba(24, 43, 70, 0.26)),
+    radial-gradient(120% 86% at 8% 4%, rgba(151, 186, 243, 0.12), transparent 56%);
+  box-shadow:
+    inset 0 1px 0 rgba(208, 229, 255, 0.22),
+    inset 0 -1px 0 rgba(118, 156, 214, 0.14),
+    0 18px 34px rgba(0, 0, 0, 0.44);
+}
+
+[data-theme="dark"] #app.ui-clone-mode #draft-box .liquid-glass-static-fill,
+[data-theme="dark"] #app.ui-clone-mode #cache-box .liquid-glass-static-fill {
+  background:
+    linear-gradient(156deg, rgba(62, 93, 136, 0.36), rgba(24, 43, 70, 0.24));
+}
+
+[data-theme="dark"] #app.ui-clone-mode #draft-box .card-header,
+[data-theme="dark"] #app.ui-clone-mode #generation-area .card-header,
+[data-theme="dark"] #app.ui-clone-mode #cache-box .card-header,
+[data-theme="dark"] #app.ui-clone-mode .discarded-panel-card .card-header {
+  border-bottom-color: rgba(170, 203, 247, 0.34);
+  background: linear-gradient(180deg, rgba(87, 121, 170, 0.3), rgba(36, 58, 90, 0.2));
+}
+
+[data-theme="dark"] #app.ui-clone-mode #draft-box .card-footer,
+[data-theme="dark"] #app.ui-clone-mode #generation-area .card-footer,
+[data-theme="dark"] #app.ui-clone-mode #cache-box .card-footer,
+[data-theme="dark"] #app.ui-clone-mode .discarded-panel-card .card-footer {
+  border-top-color: rgba(170, 203, 247, 0.3);
+  background: linear-gradient(180deg, rgba(74, 107, 155, 0.24), rgba(30, 49, 76, 0.16));
+}
+
+#app.ui-clone-mode #draft-box .card-header h3,
+#app.ui-clone-mode #generation-area .card-header h3,
+#app.ui-clone-mode #cache-box .card-header h3,
+#app.ui-clone-mode #draft-box .status-text,
+#app.ui-clone-mode #generation-area .status-text,
+#app.ui-clone-mode .generation-stage-track .stage-name,
+#app.ui-clone-mode .generation-stage-track .stage-time {
+  color: rgba(248, 252, 255, 0.98) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.26);
+}
+
+/* Clone mode + light theme: stronger contrast on main area (excluding sidebar). */
+html:not([data-theme="dark"]) #app.ui-clone-mode #generation-area .card-header h3,
+html:not([data-theme="dark"]) #app.ui-clone-mode #draft-box .card-header h3,
+html:not([data-theme="dark"]) #app.ui-clone-mode #cache-box .card-header h3,
+html:not([data-theme="dark"]) #app.ui-clone-mode #generation-area .status-text,
+html:not([data-theme="dark"]) #app.ui-clone-mode #draft-box .status-text,
+html:not([data-theme="dark"]) #app.ui-clone-mode .generation-stage-track .stage-name,
+html:not([data-theme="dark"]) #app.ui-clone-mode .generation-stage-track .stage-time {
+  color: rgba(16, 22, 30, 0.98) !important;
+  text-shadow: none !important;
+}
+
+html:not([data-theme="dark"]) #app.ui-clone-mode #new-book-btn,
+html:not([data-theme="dark"]) #app.ui-clone-mode #outline-generate-btn,
+html:not([data-theme="dark"]) #app.ui-clone-mode #engine-picker-btn,
+html:not([data-theme="dark"]) #app.ui-clone-mode #engine-picker-btn span,
+html:not([data-theme="dark"]) #app.ui-clone-mode #new-book-btn svg,
+html:not([data-theme="dark"]) #app.ui-clone-mode #outline-generate-btn svg,
+html:not([data-theme="dark"]) #app.ui-clone-mode #engine-picker-btn svg {
+  color: rgba(16, 22, 30, 0.98) !important;
+  fill: currentColor;
+  stroke: currentColor;
+  text-shadow: none !important;
+}
+
+#app.ui-clone-mode .icon-btn,
+#app.ui-clone-mode .engine-picker-btn,
+#app.ui-clone-mode .toolbar-btn,
+#app.ui-clone-mode .config-select-btn,
+#app.ui-clone-mode .settings-entry-btn,
+#app.ui-clone-mode .btn {
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  backdrop-filter: blur(24px) saturate(1.08);
+  -webkit-backdrop-filter: blur(24px) saturate(1.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(241, 248, 255, 0.2));
+  color: rgba(248, 252, 255, 0.96);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
+    0 12px 24px rgba(14, 30, 52, 0.24);
+}
+
+#app.ui-clone-mode .btn-primary,
+#app.ui-clone-mode .btn-success,
+#app.ui-clone-mode .btn-warning,
+#app.ui-clone-mode .btn-danger {
+  color: #f4f9ff;
+}
+
+/* Strict clone mode: keep button backgrounds, force icon contrast in light mode. */
+html:not([data-theme="dark"]) #app.ui-clone-mode #generation-area .writer-icon-btn,
+html:not([data-theme="dark"]) #app.ui-clone-mode #draft-box .writer-icon-btn {
+  color: rgba(248, 252, 255, 0.96);
+}
+
+html:not([data-theme="dark"]) #app.ui-clone-mode #generation-area .writer-icon-btn .btn-icon-text,
+html:not([data-theme="dark"]) #app.ui-clone-mode #draft-box .writer-icon-btn .btn-icon-text,
+html:not([data-theme="dark"]) #app.ui-clone-mode #generation-area .writer-icon-btn .btn-icon-svg,
+html:not([data-theme="dark"]) #app.ui-clone-mode #draft-box .writer-icon-btn .btn-icon-svg {
+  color: inherit;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+html:not([data-theme="dark"]) #app.ui-clone-mode #split-chapter-btn.draft-split-btn:not(:disabled):not(.is-busy) {
+  color: rgba(248, 252, 255, 0.96);
+}
+
+[data-theme="dark"] #app.ui-clone-mode .icon-btn,
+[data-theme="dark"] #app.ui-clone-mode .engine-picker-btn,
+[data-theme="dark"] #app.ui-clone-mode .toolbar-btn,
+[data-theme="dark"] #app.ui-clone-mode .config-select-btn,
+[data-theme="dark"] #app.ui-clone-mode .settings-entry-btn,
+[data-theme="dark"] #app.ui-clone-mode .btn {
+  border-color: rgba(171, 203, 247, 0.36);
+  background: linear-gradient(180deg, rgba(67, 99, 142, 0.54), rgba(26, 44, 70, 0.34));
+  box-shadow:
+    inset 0 1px 0 rgba(207, 227, 255, 0.24),
+    inset 0 -1px 0 rgba(128, 160, 206, 0.16),
+    0 14px 28px rgba(0, 0, 0, 0.44);
+}
+
+#app.ui-clone-mode .engine-picker-menu,
+#app.ui-clone-mode .config-select-menu,
+#app.ui-clone-mode .context-menu {
+  backdrop-filter: blur(42px) saturate(1.16) contrast(0.42) brightness(1.05);
+  -webkit-backdrop-filter: blur(42px) saturate(1.16) contrast(0.42) brightness(1.05);
+}
+
+/* Dark mode status readability + anti-flicker (iOS-like contrast). */
+[data-theme="dark"] .toolbar-status-bar {
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(30, 52, 84, 0.78), rgba(14, 27, 46, 0.68));
+  border-color: rgba(141, 179, 233, 0.46);
+  box-shadow:
+    inset 0 1px 0 rgba(209, 229, 255, 0.14),
+    inset 0 -1px 0 rgba(112, 148, 206, 0.12),
+    0 8px 20px rgba(0, 0, 0, 0.34);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout paint;
+  transition: none !important;
+}
+
+[data-theme="dark"] .toolbar-status-chip {
+  color: rgba(236, 244, 255, 0.95);
+  border-color: rgba(148, 182, 233, 0.4);
+  background: linear-gradient(145deg, rgba(56, 84, 123, 0.56), rgba(23, 42, 69, 0.4));
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.32);
+  transition: none !important;
+}
+
+[data-theme="dark"] #toolbar-status-engine.state-ready {
+  background: rgba(52, 199, 89, 0.24);
+  border-color: rgba(92, 214, 123, 0.62);
+  color: #c8f9d7;
+}
+
+[data-theme="dark"] #toolbar-status-engine.state-success {
+  background: rgba(38, 138, 255, 0.28);
+  border-color: rgba(100, 174, 255, 0.62);
+  color: #d2e8ff;
+}
+
+[data-theme="dark"] #toolbar-status-engine.state-error {
+  background: rgba(255, 89, 98, 0.24);
+  border-color: rgba(255, 124, 130, 0.56);
+  color: #ffd7db;
+}
+
+[data-theme="dark"] #generation-area .status-indicator-wrapper {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(141, 178, 229, 0.42);
+  background: linear-gradient(145deg, rgba(52, 79, 115, 0.58), rgba(20, 37, 60, 0.38));
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: none !important;
+}
+
+[data-theme="dark"] #generation-area .status-text {
+  color: rgba(233, 243, 255, 0.94);
+  font-weight: 600;
+}
+
+[data-theme="dark"] #generation-area #ref-status {
+  color: rgba(126, 190, 255, 0.96) !important;
+}
+
 .toast {
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.52), rgba(245, 250, 255, 0.26));
   border-color: rgba(166, 188, 223, 0.38);
@@ -1061,30 +2007,33 @@ textarea:focus,
   z-index: 4600 !important;
 }
 
-/* Model picker centered alignment */
+/* Model picker layout: dropdown opens downward and covers below content. */
 .engine-picker {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .engine-picker-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  text-align: center;
+  justify-content: flex-start;
+  text-align: left;
   gap: 6px;
 }
 
 #engine-picker-menu.engine-picker-menu {
+  top: calc(100% + 6px);
   left: 50% !important;
   right: auto !important;
-  transform: translateX(-50%);
-  min-width: max-content;
+  transform: translateX(-50%) !important;
+  min-width: 142px;
+  width: min(178px, max-content);
+  max-width: 178px;
 }
 
 #engine-picker-menu.engine-picker-menu button {
-  text-align: center;
+  text-align: left;
 }
 
 /* ── THE FIX ──────────────────────────────────────────────────────────
@@ -1101,7 +2050,10 @@ textarea:focus,
 }
 
 #writing-desk .liquid-glass-frame.card {
-  contain: layout;
+  contain: layout paint;
+  transform: translateZ(0);
+  will-change: transform;
+  isolation: isolate;
 }
 
 #writing-desk .card-header {
@@ -1109,6 +2061,9 @@ textarea:focus,
   z-index: 2;
   transform: translateZ(0);
   backface-visibility: hidden;
+  will-change: transform;
+  transition: none !important;
+  animation: none !important;
 }
 
 #writing-desk .card-footer {
@@ -1116,6 +2071,29 @@ textarea:focus,
   z-index: 2;
   transform: translateZ(0);
   backface-visibility: hidden;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Fix flicker on left edge of draft/cache headers when moving over sidebar/slider. */
+#draft-box .card-header,
+#cache-box .card-header,
+#draft-box .liquid-glass-cover,
+#cache-box .liquid-glass-cover,
+#draft-box .liquid-glass-static-fill,
+#cache-box .liquid-glass-static-fill {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+  transition: none !important;
+}
+
+#cache-box {
+  transition: none !important;
+}
+
+#cache-box .card-header:hover {
+  background: inherit !important;
 }
 
 #writing-desk .liquid-glass-layer.compat-mode .liquid-glass-static-fill {
@@ -1187,3 +2165,66 @@ textarea:focus,
 [data-theme="dark"] #app.software-gpu .config-select-menu {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
 }
+
+/* Even in software-gpu fallback, keep blur on these small dropdowns for readability/privacy. */
+#app.software-gpu #config-panel .config-select-menu,
+#app.software-gpu #engine-picker-menu.engine-picker-menu {
+  background: rgba(245, 249, 255, 0.72) !important;
+  backdrop-filter: blur(28px) saturate(1.04) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.04) !important;
+}
+
+#app.software-gpu #config-panel .config-select-menu::before,
+#app.software-gpu #engine-picker-menu.engine-picker-menu::before {
+  backdrop-filter: blur(42px) saturate(1.08) contrast(0.44) !important;
+  -webkit-backdrop-filter: blur(42px) saturate(1.08) contrast(0.44) !important;
+}
+
+[data-theme="dark"] #app.software-gpu #config-panel .config-select-menu,
+[data-theme="dark"] #app.software-gpu #engine-picker-menu.engine-picker-menu {
+  background: rgba(24, 36, 54, 0.76) !important;
+}
+
+/* iOS-like implicit scrollbars: hidden by default, visible while scrolling. */
+#app ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+#app ::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+#app ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: rgba(112, 126, 152, 0);
+  opacity: 0;
+  transition: background-color 220ms ease, opacity 220ms ease;
+}
+
+html.ui-scrolling #app ::-webkit-scrollbar-thumb,
+#app *:hover::-webkit-scrollbar-thumb,
+#app *:active::-webkit-scrollbar-thumb {
+  background-color: rgba(112, 126, 152, 0.52);
+  opacity: 1;
+}
+
+[data-theme="dark"] #app ::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0);
+}
+
+html[data-theme="dark"].ui-scrolling #app ::-webkit-scrollbar-thumb,
+[data-theme="dark"] #app *:hover::-webkit-scrollbar-thumb,
+[data-theme="dark"] #app *:active::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0.46);
+  opacity: 1;
+}
+
+#app ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+

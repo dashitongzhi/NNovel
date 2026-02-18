@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import LiquidGlass from "liquid-glass-react";
 import type { CSSProperties, ReactNode } from "react";
-import { DEMO_BUTTON_PRESET, GLOBAL_LIQUID_PRESETS } from "@/config/liquidGlassPresets";
+import { DEMO_BUTTON_PRESET, DEMO_CARD_PRESET, GLOBAL_LIQUID_PRESETS } from "@/config/liquidGlassPresets";
 import { useUiStore } from "@/stores/uiStore";
 
 interface LiquidGlassFrameProps {
@@ -29,6 +29,7 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
     interactive = false,
   } = props;
   const liquidProfile = useUiStore((state) => state.liquidProfile);
+  const strictCloneMode = useUiStore((state) => state.strictCloneMode);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const toolbarLike = className.includes("liquid-glass-toolbar-shell");
 
@@ -44,13 +45,21 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
     return false;
   }, []);
 
+  const freezeCloneCardMotion = strictCloneMode && className.includes("liquid-glass-card-shell");
+
   // In software-render mode, force static fill for all surfaces (including toolbar)
   // to avoid SVG filter + displacement cost.
-  const softwareStaticSurface = forceStaticByRuntime;
-  const freezeMotion = forceStaticByRuntime || !dynamic;
+  // In strict clone mode, card shells are also forced static to avoid white flicker
+  // when mouse moves near sidebar/scrollbar hot zones.
+  const softwareStaticSurface = forceStaticByRuntime || freezeCloneCardMotion;
+  const freezeMotion = softwareStaticSurface || !dynamic;
   const useLiquidRuntime = !softwareStaticSurface;
 
-  const profilePreset = toolbarLike ? DEMO_BUTTON_PRESET : GLOBAL_LIQUID_PRESETS[liquidProfile];
+  const profilePreset = useMemo(() => {
+    if (toolbarLike) return DEMO_BUTTON_PRESET;
+    if (strictCloneMode) return DEMO_CARD_PRESET;
+    return GLOBAL_LIQUID_PRESETS[liquidProfile];
+  }, [toolbarLike, strictCloneMode, liquidProfile]);
   const activePreset = useMemo(() => {
     if (!freezeMotion) return profilePreset;
     return {

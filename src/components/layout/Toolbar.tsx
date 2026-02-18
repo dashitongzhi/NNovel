@@ -162,7 +162,7 @@ export function Toolbar(props: ToolbarProps) {
         </div>
 
         <div className="toolbar-group right" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {IconBtn({ title: "调用当前模型生成大纲", icon: ICONS.outline, onClick: props.onOpenOutline })}
+          {IconBtn({ id: "outline-generate-btn", title: "调用当前模型生成大纲", icon: ICONS.outline, onClick: props.onOpenOutline })}
           <div className="engine-picker" ref={enginePickerRef}>
             <button
               id="engine-picker-btn"

@@ -20,6 +20,7 @@ interface UiState {
   theme: ThemeMode;
   dynamicEffectsEnabled: boolean;
   liquidProfile: LiquidProfile;
+  strictCloneMode: boolean;
   toasts: ToastItem[];
   infoItems: InfoBoxItem[];
   sidebarCollapsed: boolean;
@@ -33,6 +34,7 @@ interface UiState {
   setTheme: (theme: ThemeMode) => void;
   setDynamicEffectsEnabled: (enabled: boolean) => void;
   setLiquidProfile: (profile: LiquidProfile) => void;
+  setStrictCloneMode: (enabled: boolean) => void;
   syncTheme: () => void;
   toggleSidebar: () => void;
   setActiveGlassId: (id: string | null) => void;
@@ -42,6 +44,7 @@ let nextToastId = 1;
 const THEME_KEY = "theme";
 const DYNAMIC_EFFECTS_KEY = "writer:dynamicEffectsEnabled";
 const LIQUID_PROFILE_KEY = "writer:liquidProfile";
+const STRICT_CLONE_MODE_KEY = "writer:strictCloneMode";
 
 function readThemeMode(): ThemeMode {
   const raw = String(localStorage.getItem(THEME_KEY) || "auto").trim().toLowerCase();
@@ -59,6 +62,12 @@ function readLiquidProfile(): LiquidProfile {
   const raw = String(localStorage.getItem(LIQUID_PROFILE_KEY) || "aggressive").trim().toLowerCase();
   if (raw === "balanced" || raw === "aggressive" || raw === "experimental") return raw;
   return "aggressive";
+}
+
+function readStrictCloneMode(): boolean {
+  const raw = localStorage.getItem(STRICT_CLONE_MODE_KEY);
+  if (raw == null) return false;
+  return raw === "true";
 }
 
 function resolvedTheme(mode: ThemeMode): "light" | "dark" {
@@ -83,6 +92,7 @@ export const useUiStore = create<UiState>((set) => ({
   theme: readThemeMode(),
   dynamicEffectsEnabled: readDynamicEffectsEnabled(),
   liquidProfile: readLiquidProfile(),
+  strictCloneMode: readStrictCloneMode(),
   toasts: [],
   infoItems: [],
   sidebarCollapsed: false,
@@ -120,6 +130,10 @@ export const useUiStore = create<UiState>((set) => ({
   setLiquidProfile: (profile) => {
     localStorage.setItem(LIQUID_PROFILE_KEY, profile);
     set({ liquidProfile: profile });
+  },
+  setStrictCloneMode: (enabled) => {
+    localStorage.setItem(STRICT_CLONE_MODE_KEY, String(enabled));
+    set({ strictCloneMode: enabled });
   },
   syncTheme: () => {
     const mode = useUiStore.getState().theme;

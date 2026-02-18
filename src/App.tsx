@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Toolbar } from "@/components/layout/Toolbar";
 import { DraftPanel } from "@/components/layout/DraftPanel";
@@ -52,6 +52,12 @@ function modeLabel(mode: AppConfig["engine_mode"]): string {
   return "ChatGPT";
 }
 
+function themeModeLabel(mode: ThemeMode): string {
+  if (mode === "light") return "浅色模式";
+  if (mode === "dark") return "深色模式";
+  return "跟随系统";
+}
+
 function modelForMode(config: AppConfig, mode: AppConfig["engine_mode"]): string {
   if (mode === "gemini") return String(config.gemini_model || "");
   if (mode === "claude") return String(config.claude_model || "");
@@ -64,11 +70,57 @@ const CACHE_BOX_ENABLED_KEY = "writer:cacheBoxEnabled";
 const CACHE_BOX_EXPANDED_KEY = "writer:cacheBoxExpanded";
 const STAGE_TIMELINE_ENABLED_KEY = "writer:stageTimelineEnabled";
 const BACKGROUND_IMAGE_KEY = "writer:backgroundImage";
+const FONT_PRESET_KEY = "writer:fontPreset";
+const FONT_SIZE_KEY = "writer:fontSizePx";
+const FONT_WEIGHT_KEY = "writer:fontWeightBold";
+const TEXT_COLOR_CUSTOM_KEY = "writer:textColorCustom";
+const TEXT_COLOR_KEY = "writer:textColorHex";
+const CLONE_BACKGROUND_IMAGE = 'linear-gradient(180deg, rgba(5, 11, 20, 0.48), rgba(5, 11, 20, 0.36)), url("https://picsum.photos/seed/liquid-glass-react/2200/1400")';
 const DOUBAO_DEFAULT_MODELS = [
   "doubao-seed-1-6-251015",
   "doubao-seed-1-6-lite-251015",
   "doubao-seed-1-6-flash-250828",
 ];
+
+type FontPreset = "default" | "pingfang" | "yahei" | "source_han_sans" | "source_han_serif" | "wenkai";
+
+const FONT_PRESETS: Record<FontPreset, { label: string; ui: string; serif: string }> = {
+  default: {
+    label: "系统默认",
+    ui: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    serif: '"Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif',
+  },
+  pingfang: {
+    label: "苹方 / 鸿蒙",
+    ui: '"PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif',
+    serif: '"PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", serif',
+  },
+  yahei: {
+    label: "微软雅黑",
+    ui: '"Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif',
+    serif: '"Microsoft YaHei", "PingFang SC", "Noto Serif SC", serif',
+  },
+  source_han_sans: {
+    label: "思源黑体",
+    ui: '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    serif: '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", serif',
+  },
+  source_han_serif: {
+    label: "思源宋体",
+    ui: '"Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", serif',
+    serif: '"Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", serif',
+  },
+  wenkai: {
+    label: "霞鹜文楷",
+    ui: '"LXGW WenKai", "Kaiti SC", "KaiTi", "STKaiti", serif',
+    serif: '"LXGW WenKai", "Kaiti SC", "KaiTi", "STKaiti", serif',
+  },
+};
+
+const FONT_PRESET_OPTIONS = (Object.keys(FONT_PRESETS) as FontPreset[]).map((value) => ({
+  value,
+  label: FONT_PRESETS[value].label,
+}));
 
 interface OutlineFormState {
   overall_flow: string;
@@ -156,6 +208,64 @@ function readBoolSetting(key: string, fallback: boolean): boolean {
   const raw = localStorage.getItem(key);
   if (raw == null) return fallback;
   return raw === "true";
+}
+
+function clampFontSize(value: number): number {
+  const clamped = Math.max(13, Math.min(20, value));
+  return Math.round(clamped * 10) / 10;
+}
+
+function formatFontSize(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded.toFixed(0)}px` : `${rounded.toFixed(1)}px`;
+}
+
+function readFontPreset(): FontPreset {
+  const raw = String(localStorage.getItem(FONT_PRESET_KEY) || "default").trim().toLowerCase();
+  if (raw in FONT_PRESETS) return raw as FontPreset;
+  return "default";
+}
+
+function readFontSize(): number {
+  const raw = Number(localStorage.getItem(FONT_SIZE_KEY) || "15");
+  if (!Number.isFinite(raw)) return 15;
+  return clampFontSize(raw);
+}
+
+function readFontWeightBold(): boolean {
+  const raw = String(localStorage.getItem(FONT_WEIGHT_KEY) || "").trim().toLowerCase();
+  if (!raw) return false;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) return numeric >= 550;
+  return false;
+}
+
+function normalizeHexColor(raw: string): string | null {
+  const value = String(raw || "").trim();
+  const short = /^#([0-9a-fA-F]{3})$/;
+  const full = /^#([0-9a-fA-F]{6})$/;
+  const shortMatch = value.match(short);
+  if (shortMatch) {
+    const chunk = shortMatch[1];
+    return `#${chunk[0]}${chunk[0]}${chunk[1]}${chunk[1]}${chunk[2]}${chunk[2]}`.toLowerCase();
+  }
+  if (full.test(value)) return value.toLowerCase();
+  return null;
+}
+
+function readTextColor(): string {
+  return normalizeHexColor(String(localStorage.getItem(TEXT_COLOR_KEY) || "")) || "#1d1d1f";
+}
+
+function deriveSecondaryTextColor(primaryHex: string): string {
+  const normalized = normalizeHexColor(primaryHex) || "#1d1d1f";
+  const hex = normalized.slice(1);
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, 0.72)`;
 }
 
 function buildOutlineSeed(form: OutlineFormState): string {
@@ -328,6 +438,7 @@ function App() {
   const [selfCheckLoading, setSelfCheckLoading] = useState(false);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [appearanceSettingsOpen, setAppearanceSettingsOpen] = useState(false);
   const [assistSettingsOpen, setAssistSettingsOpen] = useState(false);
   const [accessSettingsOpen, setAccessSettingsOpen] = useState(false);
   const [doubaoSettingsOpen, setDoubaoSettingsOpen] = useState(false);
@@ -375,6 +486,15 @@ function App() {
     if (raw === "light" || raw === "dark" || raw === "auto") return raw;
     return "auto";
   });
+  const [fontPreset, setFontPreset] = useState<FontPreset>(() => readFontPreset());
+  const [fontSizePx, setFontSizePx] = useState<number>(() => readFontSize());
+  const [fontWeightBold, setFontWeightBold] = useState<boolean>(() => readFontWeightBold());
+  const [typewriterRangeSliding, setTypewriterRangeSliding] = useState(false);
+  const [fontSizeRangeSliding, setFontSizeRangeSliding] = useState(false);
+  const [customTextColorEnabled, setCustomTextColorEnabled] = useState<boolean>(() => readBoolSetting(TEXT_COLOR_CUSTOM_KEY, false));
+  const [customTextColor, setCustomTextColor] = useState<string>(() => readTextColor());
+  const [appearanceFontOpen, setAppearanceFontOpen] = useState(false);
+  const [appearanceBackgroundOpen, setAppearanceBackgroundOpen] = useState(false);
   const [activeBackgroundId, setActiveBackgroundId] = useState<string>(() => {
     const fallback = DEFAULT_BACKGROUND_ID;
     const raw = String(localStorage.getItem(BACKGROUND_IMAGE_KEY) || "").trim();
@@ -412,6 +532,12 @@ function App() {
   const modelContextTargetRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const modelContextRowRef = useRef<{ prefix: ModelListPrefix; index: number } | null>(null);
   const infoContextItemIdRef = useRef<number | null>(null);
+
+  const typewriterSpeedValue = Math.max(10, Math.min(80, generation.typewriterSpeed));
+  const typewriterRangeProgress = ((typewriterSpeedValue - 10) / (80 - 10)) * 100;
+  const fontSizeRangeProgress = ((fontSizePx - 13) / (20 - 13)) * 100;
+  const typewriterRangeStyle = { "--range-progress": `${Math.max(0, Math.min(100, typewriterRangeProgress))}%` } as CSSProperties;
+  const fontSizeRangeStyle = { "--range-progress": `${Math.max(0, Math.min(100, fontSizeRangeProgress))}%` } as CSSProperties;
 
   const refreshRuntimeStatus = async (silent = false): Promise<void> => {
     try {
@@ -534,11 +660,76 @@ function App() {
   }, [themeMode]);
 
   useEffect(() => {
+    const preset = FONT_PRESETS[fontPreset] || FONT_PRESETS.default;
+    const root = document.documentElement;
+    root.style.setProperty("--font-ui", preset.ui);
+    root.style.setProperty("--font-serif", preset.serif);
+    root.style.setProperty("--user-font-scale", String(fontSizePx / 15));
+    root.style.setProperty("--user-font-weight", fontWeightBold ? "600" : "400");
+    localStorage.setItem(FONT_PRESET_KEY, fontPreset);
+    localStorage.setItem(FONT_SIZE_KEY, String(fontSizePx));
+    localStorage.setItem(FONT_WEIGHT_KEY, String(fontWeightBold));
+  }, [fontPreset, fontSizePx, fontWeightBold]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    localStorage.setItem(TEXT_COLOR_CUSTOM_KEY, String(customTextColorEnabled));
+    localStorage.setItem(TEXT_COLOR_KEY, customTextColor);
+    if (!customTextColorEnabled) {
+      root.style.removeProperty("--text-primary");
+      root.style.removeProperty("--text-secondary");
+      return;
+    }
+    root.style.setProperty("--text-primary", customTextColor);
+    root.style.setProperty("--text-secondary", deriveSecondaryTextColor(customTextColor));
+  }, [customTextColorEnabled, customTextColor]);
+
+  useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onMedia = () => ui.syncTheme();
     media.addEventListener("change", onMedia);
     return () => media.removeEventListener("change", onMedia);
   }, [ui.theme]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    let hideTimer: number | null = null;
+    const markScrolling = () => {
+      root.classList.add("ui-scrolling");
+      if (hideTimer != null) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        root.classList.remove("ui-scrolling");
+      }, 520);
+    };
+    const onWheel = () => markScrolling();
+    const onTouchMove = () => markScrolling();
+    const onScrollCapture = () => markScrolling();
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    document.addEventListener("scroll", onScrollCapture, true);
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("scroll", onScrollCapture, true);
+      if (hideTimer != null) window.clearTimeout(hideTimer);
+      root.classList.remove("ui-scrolling");
+    };
+  }, []);
+
+  useEffect(() => {
+    const clearSliderState = () => {
+      setTypewriterRangeSliding(false);
+      setFontSizeRangeSliding(false);
+    };
+    window.addEventListener("pointerup", clearSliderState, true);
+    window.addEventListener("pointercancel", clearSliderState, true);
+    window.addEventListener("blur", clearSliderState);
+    return () => {
+      window.removeEventListener("pointerup", clearSliderState, true);
+      window.removeEventListener("pointercancel", clearSliderState, true);
+      window.removeEventListener("blur", clearSliderState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!generation.autoScroll) return;
@@ -1186,6 +1377,18 @@ function App() {
     setSettingsOpen(false);
   };
 
+  const openAppearanceSettingsModal = (): void => {
+    setAppearanceFontOpen(false);
+    setAppearanceBackgroundOpen(false);
+    setAppearanceSettingsOpen(true);
+  };
+
+  const closeAppearanceSettingsModal = (): void => {
+    setAppearanceFontOpen(false);
+    setAppearanceBackgroundOpen(false);
+    setAppearanceSettingsOpen(false);
+  };
+
   const applyBackgroundImage = (id: string): void => {
     if (!BACKGROUND_LIBRARY.some((item) => item.id === id)) return;
     setActiveBackgroundId(id);
@@ -1701,7 +1904,12 @@ function App() {
     return false;
   }, []);
 
-  const appClassName = [ui.sidebarCollapsed ? "sidebar-collapsed" : "", engineSwitching ? "engine-switching" : "", softwareGpuMode ? "software-gpu" : ""]
+  const appClassName = [
+    ui.sidebarCollapsed ? "sidebar-collapsed" : "",
+    engineSwitching ? "engine-switching" : "",
+    softwareGpuMode ? "software-gpu" : "",
+    ui.strictCloneMode ? "ui-clone-mode" : "",
+  ]
     .filter(Boolean)
     .join(" ");
   const activeBackground = useMemo(
@@ -1710,15 +1918,22 @@ function App() {
   );
   const activeBackgroundStyle = useMemo(
     () => ({
-      backgroundImage: activeBackground ? `url("${activeBackground.url}")` : "none",
+      backgroundImage: activeBackground
+        ? `url("${activeBackground.url}")`
+        : (ui.strictCloneMode ? CLONE_BACKGROUND_IMAGE : "none"),
     }),
-    [activeBackground],
+    [activeBackground, ui.strictCloneMode],
   );
 
   return (
     <>
-      <div id="app-background-layer" className={softwareGpuMode ? "software-gpu" : ""} style={activeBackgroundStyle} aria-hidden="true" />
-      <div id="app-background-vignette" className={softwareGpuMode ? "software-gpu" : ""} aria-hidden="true" />
+      <div
+        id="app-background-layer"
+        className={[softwareGpuMode ? "software-gpu" : "", ui.strictCloneMode ? "ui-clone-mode" : ""].filter(Boolean).join(" ")}
+        style={activeBackgroundStyle}
+        aria-hidden="true"
+      />
+      <div id="app-background-vignette" className={[softwareGpuMode ? "software-gpu" : "", ui.strictCloneMode ? "ui-clone-mode" : ""].filter(Boolean).join(" ")} aria-hidden="true" />
 
       <div id="app" className={appClassName}>
         <Sidebar
@@ -1863,53 +2078,16 @@ function App() {
           <div className="settings-modal-scroll">
             <div className="settings-section">
               <h4>主题外观</h4>
-              <div className="theme-options">
-                <label className="theme-option">
-                  <input type="radio" name="theme" value="light" checked={themeMode === "light"} onChange={() => setThemeMode("light")} />
-                  <span className="theme-label">☀️ 浅色模式</span>
-                </label>
-                <label className="theme-option">
-                  <input type="radio" name="theme" value="dark" checked={themeMode === "dark"} onChange={() => setThemeMode("dark")} />
-                  <span className="theme-label">🌙 深色模式</span>
-                </label>
-                <label className="theme-option">
-                  <input type="radio" name="theme" value="auto" checked={themeMode === "auto"} onChange={() => setThemeMode("auto")} />
-                  <span className="theme-label">💻 跟随系统</span>
-                </label>
-              </div>
-              <p className="settings-desc">选择界面的外观风格，"跟随系统"将自动匹配您的操作系统设置。</p>
-            </div>
-
-            <div className="settings-section">
-              <h4>背景图库</h4>
-              {BACKGROUND_LIBRARY.length ? (
-                <div className="background-picker-grid">
-                  {BACKGROUND_LIBRARY.map((item) => {
-                    const active = item.id === activeBackgroundId;
-                    return (
-                      <div key={item.id} className={`background-picker-item ${active ? "active" : ""}`}>
-                        <div className="background-picker-thumb-wrap">
-                          <img className="background-picker-thumb" src={item.url} alt={item.name} loading="lazy" decoding="async" />
-                        </div>
-                        <div className="background-picker-meta">
-                          <span className="background-picker-title" title={item.name}>{item.name}</span>
-                          <button
-                            className={`btn btn-sm background-picker-apply ${active ? "btn-success" : "btn-primary"}`}
-                            type="button"
-                            onClick={() => applyBackgroundImage(item.id)}
-                            disabled={active}
-                          >
-                            {active ? "当前背景" : "设为背景"}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="settings-desc">未检测到背景图片，请将图片放入项目根目录的 background 文件夹。</p>
-              )}
-              <p className="settings-desc">背景会固定在界面最底层，并强化 Liquid Glass 的折射层次。</p>
+              <button
+                id="open-appearance-settings-btn"
+                className="settings-entry-btn"
+                type="button"
+                onClick={openAppearanceSettingsModal}
+              >
+                <span>外观与背景</span>
+                <span className="settings-entry-arrow">{themeModeLabel(themeMode)} ›</span>
+              </button>
+              <p className="settings-desc">点击进入：模式切换、字体设置、背景预览与设为背景。</p>
             </div>
 
             <div className="settings-section">
@@ -1919,14 +2097,20 @@ function App() {
                 <div className="settings-control">
                   <input
                     id="typewriter-speed"
+                    className={`ios-range ${typewriterRangeSliding ? "is-sliding" : ""}`}
+                    style={typewriterRangeStyle}
                     type="range"
                     min={10}
                     max={80}
                     step={5}
-                    value={Math.max(10, Math.min(80, generation.typewriterSpeed))}
+                    value={typewriterSpeedValue}
                     onChange={(e) => generation.setTypewriterSpeed(Number(e.target.value || 30))}
+                    onPointerDown={() => setTypewriterRangeSliding(true)}
+                    onPointerUp={() => setTypewriterRangeSliding(false)}
+                    onPointerCancel={() => setTypewriterRangeSliding(false)}
+                    onBlur={() => setTypewriterRangeSliding(false)}
                   />
-                  <span id="typewriter-speed-value" className="settings-value">{Math.max(10, Math.min(80, generation.typewriterSpeed))}ms/字</span>
+                  <span id="typewriter-speed-value" className="settings-value range-value">{typewriterSpeedValue}ms/字</span>
                 </div>
               </div>
               <label className="settings-toggle">
@@ -1978,6 +2162,254 @@ function App() {
         </div>
       </div>
 
+      <div id="appearance-settings-modal" className={`modal-overlay ${appearanceSettingsOpen ? "" : "hidden"}`} onClick={(e) => {
+        if (e.target === e.currentTarget) closeAppearanceSettingsModal();
+      }}>
+        <div className="modal-content settings-modal-content">
+          <div className="modal-header settings-modal-header">
+            <button
+              className="icon-btn settings-modal-header-icon-btn back-btn"
+              type="button"
+              aria-label="返回系统设置"
+              onClick={closeAppearanceSettingsModal}
+            >
+              <svg className="settings-back-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path d="M12.5 4.5L7 10l5.5 5.5" />
+              </svg>
+            </button>
+            <h3>主题外观</h3>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭主题外观" onClick={closeAppearanceSettingsModal}>×</button>
+          </div>
+          <div className="settings-modal-scroll">
+            <div className="settings-section">
+              <h4>模式切换</h4>
+              <div className="theme-options">
+                <label className="theme-option">
+                  <input type="radio" name="theme-appearance" value="light" checked={themeMode === "light"} onChange={() => setThemeMode("light")} />
+                  <span className="theme-label">☀️ 浅色模式</span>
+                </label>
+                <label className="theme-option">
+                  <input type="radio" name="theme-appearance" value="dark" checked={themeMode === "dark"} onChange={() => setThemeMode("dark")} />
+                  <span className="theme-label">🌙 深色模式</span>
+                </label>
+                <label className="theme-option">
+                  <input type="radio" name="theme-appearance" value="auto" checked={themeMode === "auto"} onChange={() => setThemeMode("auto")} />
+                  <span className="theme-label">💻 跟随系统</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="settings-section">
+              <h4>字体切换</h4>
+              <button
+                id="appearance-font-toggle-btn"
+                className="settings-entry-btn"
+                type="button"
+                onClick={() => setAppearanceFontOpen(true)}
+              >
+                <span>字体设置</span>
+                <span className="settings-entry-arrow">›</span>
+              </button>
+              <p className="settings-desc">点击后进入字体弹窗，设置字体方案、字号与文字颜色。</p>
+            </div>
+
+            <div className="settings-section">
+              <h4>设置背景</h4>
+              <button
+                id="appearance-background-toggle-btn"
+                className="settings-entry-btn"
+                type="button"
+                onClick={() => setAppearanceBackgroundOpen(true)}
+              >
+                <span>背景图库</span>
+                <span className="settings-entry-arrow">›</span>
+              </button>
+              <p className="settings-desc">点击后进入背景弹窗，预览背景并一键设为当前背景。</p>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button className="btn btn-primary" type="button" onClick={closeAppearanceSettingsModal}>完成</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="appearance-font-modal" className={`modal-overlay ${appearanceFontOpen ? "" : "hidden"}`} onClick={(e) => {
+        if (e.target === e.currentTarget) setAppearanceFontOpen(false);
+      }}>
+        <div className="modal-content settings-modal-content">
+          <div className="modal-header settings-modal-header">
+            <button
+              className="icon-btn settings-modal-header-icon-btn back-btn"
+              type="button"
+              aria-label="返回主题外观"
+              onClick={() => setAppearanceFontOpen(false)}
+            >
+              <svg className="settings-back-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path d="M12.5 4.5L7 10l5.5 5.5" />
+              </svg>
+            </button>
+            <h3>字体设置</h3>
+            <button
+              className="icon-btn settings-modal-header-icon-btn"
+              type="button"
+              aria-label="关闭字体设置"
+              onClick={() => {
+                setAppearanceFontOpen(false);
+                setAppearanceSettingsOpen(false);
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="settings-modal-scroll">
+            <div className="settings-section">
+              <div className="settings-row">
+                <label className="settings-label">字体方案</label>
+                <div className="settings-control">
+                  <ConfigSelect
+                    id="font-preset-select"
+                    value={fontPreset}
+                    onChange={(value) => setFontPreset(value as FontPreset)}
+                    options={FONT_PRESET_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+                  />
+                </div>
+              </div>
+              <div className="settings-row">
+                <label htmlFor="font-size-select" className="settings-label">字体大小</label>
+                <div className="settings-control">
+                  <input
+                    id="font-size-select"
+                    className={`ios-range ${fontSizeRangeSliding ? "is-sliding" : ""}`}
+                    style={fontSizeRangeStyle}
+                    type="range"
+                    min={13}
+                    max={20}
+                    step={0.1}
+                    value={fontSizePx}
+                    onChange={(e) => setFontSizePx(clampFontSize(Number(e.target.value || 15)))}
+                    onPointerDown={() => setFontSizeRangeSliding(true)}
+                    onPointerUp={() => setFontSizeRangeSliding(false)}
+                    onPointerCancel={() => setFontSizeRangeSliding(false)}
+                    onBlur={() => setFontSizeRangeSliding(false)}
+                  />
+                  <span className="settings-value range-value">{formatFontSize(fontSizePx)}</span>
+                </div>
+              </div>
+              <label className="ios-switch-row" htmlFor="font-weight-bold-enabled">
+                <span className="settings-label">全局字体加粗</span>
+                <span className="ios-switch">
+                  <input
+                    id="font-weight-bold-enabled"
+                    type="checkbox"
+                    checked={fontWeightBold}
+                    onChange={(e) => setFontWeightBold(e.target.checked)}
+                  />
+                  <span className="ios-switch-slider" />
+                </span>
+              </label>
+              <label className="ios-switch-row" htmlFor="custom-text-color-enabled">
+                <span className="settings-label">自定义文字颜色</span>
+                <span className="ios-switch">
+                  <input
+                    id="custom-text-color-enabled"
+                    type="checkbox"
+                    checked={customTextColorEnabled}
+                    onChange={(e) => setCustomTextColorEnabled(e.target.checked)}
+                  />
+                  <span className="ios-switch-slider" />
+                </span>
+              </label>
+              {customTextColorEnabled ? (
+                <div className="settings-row">
+                  <label htmlFor="custom-text-color-input" className="settings-label">文字颜色</label>
+                  <div className="settings-control">
+                    <input
+                      id="custom-text-color-input"
+                      className="settings-color-input"
+                      type="color"
+                      value={customTextColor}
+                      onChange={(e) => {
+                        const normalized = normalizeHexColor(e.target.value);
+                        if (normalized) setCustomTextColor(normalized);
+                      }}
+                    />
+                    <span className="settings-value">{customTextColor.toUpperCase()}</span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button className="btn btn-primary" type="button" onClick={() => setAppearanceFontOpen(false)}>完成</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="appearance-background-modal" className={`modal-overlay ${appearanceBackgroundOpen ? "" : "hidden"}`} onClick={(e) => {
+        if (e.target === e.currentTarget) setAppearanceBackgroundOpen(false);
+      }}>
+        <div className="modal-content settings-modal-content">
+          <div className="modal-header settings-modal-header">
+            <button
+              className="icon-btn settings-modal-header-icon-btn back-btn"
+              type="button"
+              aria-label="返回主题外观"
+              onClick={() => setAppearanceBackgroundOpen(false)}
+            >
+              <svg className="settings-back-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path d="M12.5 4.5L7 10l5.5 5.5" />
+              </svg>
+            </button>
+            <h3>设置背景</h3>
+            <button
+              className="icon-btn settings-modal-header-icon-btn"
+              type="button"
+              aria-label="关闭背景设置"
+              onClick={() => {
+                setAppearanceBackgroundOpen(false);
+                setAppearanceSettingsOpen(false);
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="settings-modal-scroll">
+            <div className="settings-section">
+              {BACKGROUND_LIBRARY.length ? (
+                <div className="background-picker-grid">
+                  {BACKGROUND_LIBRARY.map((item) => {
+                    const active = item.id === activeBackgroundId;
+                    return (
+                      <div key={item.id} className={`background-picker-item ${active ? "active" : ""}`}>
+                        <div className="background-picker-thumb-wrap">
+                          <img className="background-picker-thumb" src={item.url} alt={item.name} loading="lazy" decoding="async" />
+                        </div>
+                        <div className="background-picker-meta">
+                          <span className="background-picker-title" title={item.name}>{item.name}</span>
+                          <button
+                            className={`btn btn-sm background-picker-apply ${active ? "btn-success" : "btn-primary"}`}
+                            type="button"
+                            onClick={() => applyBackgroundImage(item.id)}
+                            disabled={active}
+                          >
+                            {active ? "当前背景" : "设为背景"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="settings-desc">未检测到背景图片，请将图片放入项目根目录的 background 文件夹。</p>
+              )}
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button className="btn btn-primary" type="button" onClick={() => setAppearanceBackgroundOpen(false)}>完成</button>
+          </div>
+        </div>
+      </div>
+
       <div id="assist-settings-modal" className={`modal-overlay ${assistSettingsOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setAssistSettingsOpen(false);
       }}>
@@ -2023,6 +2455,28 @@ function App() {
                   />
                 </div>
               </div>
+              <label className="ios-switch-row" htmlFor="strict-clone-mode-enabled">
+                <span className="settings-label">完全复刻 UI（除按钮尺寸）</span>
+                <span className="ios-switch">
+                  <input
+                    id="strict-clone-mode-enabled"
+                    type="checkbox"
+                    checked={ui.strictCloneMode}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      ui.setStrictCloneMode(next);
+                      if (next) {
+                        ui.setLiquidProfile("aggressive");
+                        ui.setDynamicEffectsEnabled(true);
+                        ui.addToast("已启用完全复刻 UI", "success");
+                      } else {
+                        ui.addToast("已关闭完全复刻 UI", "info");
+                      }
+                    }}
+                  />
+                  <span className="ios-switch-slider" />
+                </span>
+              </label>
               <p className="settings-desc">开启后默认使用更强动态折射；关闭后使用更保守稳定的液态玻璃参数。</p>
             </div>
           </div>
