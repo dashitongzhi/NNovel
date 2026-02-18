@@ -5,6 +5,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   outline: "",
   reference: "",
   requirements: "",
+  word_target: "",
   extra_settings: "",
   global_memory: "",
   engine_mode: "codex",

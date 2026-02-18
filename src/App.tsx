@@ -18,6 +18,7 @@ import { diffMemory } from "@/utils/memory";
 import { generateChapterTitle, saveChapter } from "@/services/endpoints/chapter";
 import { generateOutline } from "@/services/endpoints/outline";
 import { polishDraft } from "@/services/endpoints/polish";
+import { optimizeReference } from "@/services/endpoints/reference";
 import { getBooks, createBook, switchBook } from "@/services/endpoints/books";
 import { listChapters, getChapter, deleteChapter, type ChapterItem } from "@/services/endpoints/chapters";
 import { uploadTxt } from "@/services/endpoints/upload";
@@ -457,6 +458,7 @@ function App() {
   const [chapterTitleGenerating, setChapterTitleGenerating] = useState(false);
   const [chapterSaving, setChapterSaving] = useState(false);
   const [draftPolishing, setDraftPolishing] = useState(false);
+  const [referenceOptimizing, setReferenceOptimizing] = useState(false);
   const [polishModalOpen, setPolishModalOpen] = useState(false);
   const [polishRequirements, setPolishRequirements] = useState("");
 
@@ -1491,6 +1493,31 @@ function App() {
     setSettingsOpen(false);
   };
 
+  const handleOptimizeReference = async (): Promise<void> => {
+    const rawReference = String(configStore.config.reference || "").trim();
+    if (!rawReference) {
+      ui.addToast("参考文本为空，无法总结", "warning");
+      return;
+    }
+    setReferenceOptimizing(true);
+    try {
+      const payload = await optimizeReference(configStore.config);
+      const nextReference = String(payload.reference || "").trim();
+      if (!nextReference) {
+        ui.addToast("总结结果为空，请重试", "warning");
+        return;
+      }
+      configStore.patch({ reference: nextReference });
+      void configStore.saveQuietly();
+      ui.addToast("参考文本已总结优化", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "参考文本总结失败";
+      ui.addToast(`参考文本总结失败: ${message}`, "error");
+    } finally {
+      setReferenceOptimizing(false);
+    }
+  };
+
   const openAppearanceSettingsModal = (): void => {
     setAppearanceFontOpen(false);
     setAppearanceBackgroundOpen(false);
@@ -2089,10 +2116,12 @@ function App() {
           config={configStore.config}
           saving={configStore.saving}
           isWriting={generation.isWriting}
+          referenceOptimizing={referenceOptimizing}
           personalConfigReady={personalConfigReady}
           onPatch={handleSidebarPatch}
           onSelectDoubaoModel={applySelectedDoubaoModel}
           onSelectPersonalModel={applySelectedPersonalModel}
+          onOptimizeReference={() => void handleOptimizeReference()}
           onSave={() => void handleSaveConfig()}
           onStartStop={() => void handleStartStop()}
           onOpenPersonalConfig={openPersonalConfigModal}

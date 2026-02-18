@@ -89,13 +89,19 @@
   justify-content: center;
 }
 
+#draft-box .draft-header-actions .draft-action-btn {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+}
+
 #draft-box .draft-header-actions .btn-icon-text {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-0.5px);
+  transform: translateY(0);
 }
 
 #draft-box .draft-header-actions .btn-icon-svg {
@@ -109,12 +115,7 @@
 }
 
 #split-chapter-btn.draft-split-btn {
-  min-width: 110px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
+  padding: 0;
 }
 
 #split-chapter-btn.draft-split-btn.is-busy,
@@ -1001,6 +1002,79 @@ body {
   position: relative;
   z-index: 1;
   isolation: isolate;
+}
+
+#config-panel .section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#config-panel .sidebar-tool-btn {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 16px;
+}
+
+#config-panel .sidebar-tool-btn:disabled {
+  opacity: 0.5;
+  filter: grayscale(0.2);
+}
+
+#config-panel .reference-optimize-wrap {
+  position: relative;
+}
+
+#config-panel .reference-optimize-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(160deg, rgba(240, 247, 255, 0.72), rgba(228, 238, 252, 0.46));
+  border: 1px solid rgba(165, 189, 226, 0.42);
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
+  box-shadow: 0 10px 24px rgba(26, 46, 78, 0.18);
+  animation: reference-optimize-pulse 1.2s ease-in-out infinite alternate;
+  z-index: 3;
+}
+
+[data-theme="dark"] #config-panel .reference-optimize-overlay {
+  background: linear-gradient(160deg, rgba(34, 54, 82, 0.74), rgba(20, 34, 57, 0.58));
+  border-color: rgba(136, 169, 220, 0.42);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
+}
+
+#config-panel .reference-optimize-text {
+  font-size: calc(13px * var(--user-font-scale));
+  font-weight: 700;
+  color: rgba(21, 34, 54, 0.94);
+}
+
+[data-theme="dark"] #config-panel .reference-optimize-text {
+  color: rgba(238, 245, 255, 0.96);
+}
+
+@keyframes reference-optimize-pulse {
+  0% {
+    box-shadow: 0 10px 22px rgba(26, 46, 78, 0.16);
+    transform: translateZ(0);
+  }
+  100% {
+    box-shadow: 0 14px 28px rgba(26, 46, 78, 0.24);
+    transform: translate3d(0, -1px, 0);
+  }
 }
 
 .settings-label {

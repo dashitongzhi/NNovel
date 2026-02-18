@@ -27,10 +27,10 @@ interface GenerationPanelProps {
 }
 
 const WRITER_BUTTON_ICONS = {
-  play: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 3.5a.7.7 0 0 1 1.07-.6l6 4a.7.7 0 0 1 0 1.2l-6 4A.7.7 0 0 1 4 11.5z"/></svg>',
-  stop: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/></svg>',
-  pause: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="3.5" width="3" height="9" rx="1"/><rect x="9" y="3.5" width="3" height="9" rx="1"/></svg>',
-  resume: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 3.5a.7.7 0 0 1 1.07-.6l6 4a.7.7 0 0 1 0 1.2l-6 4A.7.7 0 0 1 4 11.5z"/></svg>',
+  play: "▶️",
+  stop: "🛑",
+  pause: "⏸️",
+  resume: "▶️",
   skip: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 4a.7.7 0 0 1 1.1-.57L8 6.17V4.7a.7.7 0 0 1 1.1-.57l3.8 2.53a.7.7 0 0 1 0 1.16L9.1 10.35A.7.7 0 0 1 8 9.78V8.3l-3.9 2.74A.7.7 0 0 1 3 10.47z"/></svg>',
 } as const;
 
@@ -91,13 +91,9 @@ export function GenerationPanel(props: GenerationPanelProps) {
             title={props.isPaused ? "继续写作" : "暂停写作"}
             aria-label={props.isPaused ? "继续写作" : "暂停写作"}
           >
-            <span
-              className="btn-icon-text"
-              aria-hidden="true"
-              dangerouslySetInnerHTML={{
-                __html: props.isPaused ? WRITER_BUTTON_ICONS.resume : WRITER_BUTTON_ICONS.pause,
-              }}
-            />
+            <span className="btn-icon-text" aria-hidden="true">
+              {props.isPaused ? WRITER_BUTTON_ICONS.resume : WRITER_BUTTON_ICONS.pause}
+            </span>
           </button>
           <button
             id="start-writing-btn"
@@ -108,13 +104,9 @@ export function GenerationPanel(props: GenerationPanelProps) {
             title={props.isWriting ? "停止写作" : "开始写作"}
             aria-label={props.isWriting ? "停止写作" : "开始写作"}
           >
-            <span
-              className="btn-icon-text"
-              aria-hidden="true"
-              dangerouslySetInnerHTML={{
-                __html: props.isWriting ? WRITER_BUTTON_ICONS.stop : WRITER_BUTTON_ICONS.play,
-              }}
-            />
+            <span className="btn-icon-text" aria-hidden="true">
+              {props.isWriting ? WRITER_BUTTON_ICONS.stop : WRITER_BUTTON_ICONS.play}
+            </span>
           </button>
           <button
             id="skip-anim-btn"
@@ -136,7 +128,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
             title={props.autoScroll ? "自动滚动: 开" : "自动滚动: 关"}
             aria-label={props.autoScroll ? "自动滚动: 开" : "自动滚动: 关"}
           >
-            <span className="btn-icon-text" aria-hidden="true">▼</span>
+            <span className="btn-icon-text" aria-hidden="true">{props.autoScroll ? "🔒" : "↕️"}</span>
           </button>
         </div>
       </div>

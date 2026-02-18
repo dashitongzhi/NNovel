@@ -9,10 +9,12 @@ interface SidebarProps {
   config: AppConfig;
   saving: boolean;
   isWriting: boolean;
+  referenceOptimizing: boolean;
   personalConfigReady: boolean;
   onPatch: (patch: Partial<AppConfig>) => void;
   onSelectDoubaoModel: (value: string) => void;
   onSelectPersonalModel: (value: string) => void;
+  onOptimizeReference: () => void;
   onSave: () => void;
   onStartStop: () => void;
   onOpenPersonalConfig: () => void;
@@ -52,7 +54,21 @@ const DOUBAO_FALLBACK_MODELS = [
 ];
 
 export function Sidebar(props: SidebarProps) {
-  const { config, saving, isWriting, personalConfigReady, onPatch, onSelectDoubaoModel, onSelectPersonalModel, onSave, onStartStop, onOpenPersonalConfig, onImportFile } = props;
+  const {
+    config,
+    saving,
+    isWriting,
+    referenceOptimizing,
+    personalConfigReady,
+    onPatch,
+    onSelectDoubaoModel,
+    onSelectPersonalModel,
+    onOptimizeReference,
+    onSave,
+    onStartStop,
+    onOpenPersonalConfig,
+    onImportFile,
+  } = props;
   const liveDoubaoModel = useConfigStore((state) => state.config.doubao_model);
   const liveDoubaoModels = useConfigStore((state) => state.config.doubao_models);
   const livePersonalModel = useConfigStore((state) => state.config.personal_model);
@@ -75,7 +91,9 @@ export function Sidebar(props: SidebarProps) {
       <div className="panel-section">
         <div className="section-header">
           <h3>大纲设定</h3>
-          <label className="import-btn" htmlFor="file-outline">导入文件</label>
+          <label className="import-btn sidebar-tool-btn icon-btn toolbar-icon-btn glass-btn" htmlFor="file-outline" title="导入大纲文本">
+            <span aria-hidden="true">📥</span>
+          </label>
           <input
             type="file"
             id="file-outline"
@@ -99,7 +117,21 @@ export function Sidebar(props: SidebarProps) {
       <div className="panel-section">
         <div className="section-header">
           <h3>参考文本</h3>
-          <label className="import-btn" htmlFor="file-reference">导入文件</label>
+          <div className="section-actions">
+            <label className="import-btn sidebar-tool-btn icon-btn toolbar-icon-btn glass-btn" htmlFor="file-reference" title="导入参考文本">
+              <span aria-hidden="true">📥</span>
+            </label>
+            <button
+              className="sidebar-tool-btn icon-btn toolbar-icon-btn glass-btn"
+              type="button"
+              title="使用当前模型总结优化参考文本"
+              aria-label="使用当前模型总结优化参考文本"
+              disabled={referenceOptimizing || !String(config.reference || "").trim() || isWriting}
+              onClick={onOptimizeReference}
+            >
+              <span aria-hidden="true">🪄</span>
+            </button>
+          </div>
           <input
             type="file"
             id="file-reference"
@@ -112,12 +144,19 @@ export function Sidebar(props: SidebarProps) {
             }}
           />
         </div>
-        <textarea
-          id="reference-input"
-          value={config.reference}
-          onChange={(e) => onPatch({ reference: e.target.value })}
-          placeholder="输入风格参考或上下文..."
-        />
+        <div className="reference-optimize-wrap">
+          <textarea
+            id="reference-input"
+            value={config.reference}
+            onChange={(e) => onPatch({ reference: e.target.value })}
+            placeholder="输入风格参考或上下文..."
+            readOnly={referenceOptimizing}
+          />
+          <div className={`reference-optimize-overlay ${referenceOptimizing ? "" : "hidden"}`}>
+            <div className="thinking-spinner" />
+            <div className="reference-optimize-text">正在总结参考文本...</div>
+          </div>
+        </div>
       </div>
 
       <div className="panel-section">
@@ -129,6 +168,18 @@ export function Sidebar(props: SidebarProps) {
           value={config.requirements}
           onChange={(e) => onPatch({ requirements: e.target.value })}
           placeholder="输入本章特殊要求..."
+        />
+      </div>
+
+      <div className="panel-section">
+        <div className="section-header">
+          <h3>字数设定</h3>
+        </div>
+        <textarea
+          id="word-target-input"
+          value={config.word_target}
+          onChange={(e) => onPatch({ word_target: e.target.value })}
+          placeholder="例如：本章 1800-2200 字；全书约 80 万字；关键情节可上浮 20%"
         />
       </div>
 

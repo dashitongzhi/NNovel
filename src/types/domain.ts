@@ -5,6 +5,7 @@ export interface AppConfig {
   outline: string;
   reference: string;
   requirements: string;
+  word_target: string;
   extra_settings: string;
   global_memory: string;
   global_memory_structured?: Record<string, unknown>;

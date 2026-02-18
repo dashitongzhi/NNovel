@@ -23,6 +23,7 @@ from codex_engine import (
     generate_chapter_title,
     generate_outline,
     polish_draft,
+    optimize_reference_prompt,
     generate_novel_with_progress,
     get_codex_status,
     get_startup_self_check,
@@ -77,6 +78,7 @@ _SETTINGS_SYNC_FIELDS = (
     "claude_model",
     "doubao_model",
     "doubao_models",
+    "word_target",
     "codex_access_mode",
     "gemini_access_mode",
     "claude_access_mode",
@@ -106,6 +108,23 @@ def _effort(v):
     if x in {"low", "medium", "high"}:
         return x
     return "medium"
+
+
+def _selected_effort_for_mode(
+    engine_mode,
+    codex_reasoning_effort="medium",
+    gemini_reasoning_effort="medium",
+    claude_reasoning_effort="medium",
+    doubao_reasoning_effort="medium",
+):
+    mode = _text(engine_mode).lower()
+    if mode == "gemini":
+        return _effort(gemini_reasoning_effort)
+    if mode == "claude":
+        return _effort(claude_reasoning_effort)
+    if mode == "doubao":
+        return _effort(doubao_reasoning_effort)
+    return _effort(codex_reasoning_effort)
 
 
 def _access_mode(v):
@@ -495,8 +514,10 @@ def _build_generation_checkpoint(
     outline,
     reference,
     requirements,
+    word_target,
     extra_settings,
     global_memory,
+    reasoning_effort="",
     partial_content="",
     thinking="",
     resume_seed="",
@@ -511,6 +532,8 @@ def _build_generation_checkpoint(
         "outline": str(outline or ""),
         "reference": str(reference or ""),
         "requirements": str(requirements or ""),
+        "word_target": str(word_target or ""),
+        "reasoning_effort": _effort(reasoning_effort),
         "extra_settings": str(extra_settings or ""),
         "global_memory": str(global_memory or ""),
         "partial_content": str(partial_content or ""),
@@ -699,6 +722,8 @@ def _generation_worker(
     outline,
     reference,
     requirements,
+    word_target,
+    reasoning_effort,
     extra_settings,
     global_memory,
     resume_seed="",
@@ -722,6 +747,8 @@ def _generation_worker(
             outline=outline,
             reference=reference,
             requirements=requirements,
+            word_target=word_target,
+            reasoning_effort=reasoning_effort,
             extra_settings=extra_settings,
             global_memory=global_memory,
             partial_content=partial_text,
@@ -770,9 +797,11 @@ def _generation_worker(
             outline,
             reference,
             requirements,
+            word_target,
             extra_settings,
             global_memory,
             draft_so_far,
+            reasoning_effort=reasoning_effort,
             on_progress=_on_progress,
             should_stop=lambda: _is_stop_requested(task_id),
             on_process_start=_on_process_start,
@@ -874,6 +903,8 @@ def _start_generation_task(
     outline,
     reference,
     requirements,
+    word_target,
+    reasoning_effort,
     extra_settings,
     global_memory,
     resume_seed="",
@@ -900,6 +931,8 @@ def _start_generation_task(
             outline,
             reference,
             requirements,
+            word_target,
+            reasoning_effort,
             extra_settings,
             global_memory,
             resume_seed,
@@ -956,6 +989,7 @@ def api_get_config():
             "outline": config.get("outline", ""),
             "reference": config.get("reference", ""),
             "requirements": config.get("requirements", ""),
+            "word_target": config.get("word_target", ""),
             "extra_settings": config.get("extra_settings", ""),
             "global_memory": config.get("global_memory", ""),
             "global_memory_structured": config.get("global_memory_structured", {}),
@@ -1198,6 +1232,7 @@ def api_save_config():
     outline = _text(data.get("outline"))
     reference = _text(data.get("reference"))
     requirements = _text(data.get("requirements"))
+    word_target = _text(data.get("word_target"))
     extra_settings = _text(data.get("extra_settings"))
     global_memory = _text(data.get("global_memory"))
     engine_mode = _text(data.get("engine_mode")).lower()
@@ -1230,6 +1265,7 @@ def api_save_config():
         "outline": outline,
         "reference": reference,
         "requirements": requirements,
+        "word_target": word_target,
         "extra_settings": extra_settings,
         "global_memory": normalized_memory_text,
         "global_memory_structured": normalized_memory_structured,
@@ -1270,6 +1306,7 @@ def api_generate_outline():
     outline = _text(data.get("outline"))
     reference = _text(data.get("reference"))
     requirements = _text(data.get("requirements"))
+    word_target = _text(data.get("word_target"))
     extra_settings = _text(data.get("extra_settings"))
     global_memory = _text(data.get("global_memory"))
     engine_mode = _text(data.get("engine_mode")).lower()
@@ -1309,6 +1346,13 @@ def api_generate_outline():
     doubao_reasoning_effort = _effort(
         _text(data.get("doubao_reasoning_effort")) or _text(prev_cfg.get("doubao_reasoning_effort"))
     )
+    request_reasoning_effort = _selected_effort_for_mode(
+        engine_mode,
+        codex_reasoning_effort=codex_reasoning_effort,
+        gemini_reasoning_effort=gemini_reasoning_effort,
+        claude_reasoning_effort=claude_reasoning_effort,
+        doubao_reasoning_effort=doubao_reasoning_effort,
+    )
     proxy_port = _proxy_port(_text(data.get("proxy_port")) or _text(prev_cfg.get("proxy_port")))
 
     normalized_memory_text, normalized_memory_structured = _normalize_memory_payload(
@@ -1320,6 +1364,7 @@ def api_generate_outline():
         "outline": outline,
         "reference": reference,
         "requirements": requirements,
+        "word_target": word_target,
         "extra_settings": extra_settings,
         "global_memory": normalized_memory_text,
         "global_memory_structured": normalized_memory_structured,
@@ -1343,7 +1388,15 @@ def api_generate_outline():
     save_project(project)
     _apply_runtime_proxy_env(proxy_port)
 
-    result = generate_outline(outline, reference, requirements, extra_settings, normalized_memory_text)
+    result = generate_outline(
+        outline,
+        reference,
+        requirements,
+        word_target,
+        extra_settings,
+        normalized_memory_text,
+        reasoning_effort=request_reasoning_effort,
+    )
     if not result.get("success"):
         return jsonify({"ok": False, "message": result.get("error") or "大纲生成失败"}), 400
 
@@ -1367,6 +1420,7 @@ def api_polish_draft():
     outline = _text(data.get("outline"))
     reference = _text(data.get("reference"))
     requirements = _text(data.get("requirements"))
+    word_target = _text(data.get("word_target"))
     extra_settings = _text(data.get("extra_settings"))
     global_memory = _text(data.get("global_memory"))
     engine_mode = _text(data.get("engine_mode")).lower()
@@ -1392,6 +1446,13 @@ def api_polish_draft():
     )
     doubao_reasoning_effort = _effort(
         _text(data.get("doubao_reasoning_effort")) or _text(prev_cfg.get("doubao_reasoning_effort"))
+    )
+    request_reasoning_effort = _selected_effort_for_mode(
+        engine_mode,
+        codex_reasoning_effort=codex_reasoning_effort,
+        gemini_reasoning_effort=gemini_reasoning_effort,
+        claude_reasoning_effort=claude_reasoning_effort,
+        doubao_reasoning_effort=doubao_reasoning_effort,
     )
     preferred_doubao_model = _text(data.get("doubao_model")) or _text(prev_cfg.get("doubao_model"))
     doubao_models = _doubao_models(
@@ -1417,6 +1478,7 @@ def api_polish_draft():
         "outline": outline or _text(prev_cfg.get("outline")),
         "reference": reference or _text(prev_cfg.get("reference")),
         "requirements": requirements or _text(prev_cfg.get("requirements")),
+        "word_target": word_target or _text(prev_cfg.get("word_target")),
         "extra_settings": extra_settings or _text(prev_cfg.get("extra_settings")),
         "global_memory": normalized_memory_text,
         "global_memory_structured": normalized_memory_structured,
@@ -1445,8 +1507,10 @@ def api_polish_draft():
         polish_requirements=polish_requirements,
         reference=project["config"].get("reference", ""),
         requirements=project["config"].get("requirements", ""),
+        word_target=project["config"].get("word_target", ""),
         extra_settings=project["config"].get("extra_settings", ""),
         global_memory=project["config"].get("global_memory", ""),
+        reasoning_effort=request_reasoning_effort,
     )
     if not result.get("success"):
         return jsonify({"ok": False, "message": result.get("error") or "润色失败"}), 400
@@ -1467,6 +1531,132 @@ def api_polish_draft():
     )
 
 
+@app.route("/api/reference/optimize", methods=["POST"])
+def api_optimize_reference():
+    data = request.get_json(silent=True) or {}
+    _sync_auth_from_payload(data)
+    reference = _text(data.get("reference"))
+    if not reference:
+        return jsonify({"ok": False, "message": "参考文本为空，无法总结"}), 400
+
+    outline = _text(data.get("outline"))
+    requirements = _text(data.get("requirements"))
+    word_target = _text(data.get("word_target"))
+    extra_settings = _text(data.get("extra_settings"))
+    global_memory = _text(data.get("global_memory"))
+    engine_mode = _text(data.get("engine_mode")).lower()
+    if engine_mode not in {"codex", "gemini", "doubao", "claude", "personal"}:
+        engine_mode = "codex"
+
+    project = load_project()
+    prev_cfg = project.get("config", {})
+    codex_model = _text(data.get("codex_model")) or _text(prev_cfg.get("codex_model"))
+    gemini_model = _text(data.get("gemini_model")) or _text(prev_cfg.get("gemini_model"))
+    claude_model = _claude_model(_text(data.get("claude_model")) or _text(prev_cfg.get("claude_model")))
+    codex_access_mode = _access_mode(_text(data.get("codex_access_mode")) or _text(prev_cfg.get("codex_access_mode")))
+    gemini_access_mode = _access_mode(_text(data.get("gemini_access_mode")) or _text(prev_cfg.get("gemini_access_mode")))
+    claude_access_mode = _access_mode(_text(data.get("claude_access_mode")) or _text(prev_cfg.get("claude_access_mode")))
+    codex_reasoning_effort = _effort(
+        _text(data.get("codex_reasoning_effort")) or _text(prev_cfg.get("codex_reasoning_effort"))
+    )
+    gemini_reasoning_effort = _effort(
+        _text(data.get("gemini_reasoning_effort")) or _text(prev_cfg.get("gemini_reasoning_effort"))
+    )
+    claude_reasoning_effort = _effort(
+        _text(data.get("claude_reasoning_effort")) or _text(prev_cfg.get("claude_reasoning_effort"))
+    )
+    doubao_reasoning_effort = _effort(
+        _text(data.get("doubao_reasoning_effort")) or _text(prev_cfg.get("doubao_reasoning_effort"))
+    )
+    request_reasoning_effort = _selected_effort_for_mode(
+        engine_mode,
+        codex_reasoning_effort=codex_reasoning_effort,
+        gemini_reasoning_effort=gemini_reasoning_effort,
+        claude_reasoning_effort=claude_reasoning_effort,
+        doubao_reasoning_effort=doubao_reasoning_effort,
+    )
+    preferred_doubao_model = _text(data.get("doubao_model")) or _text(prev_cfg.get("doubao_model"))
+    doubao_models = _doubao_models(
+        _text(data.get("doubao_models"))
+        or preferred_doubao_model
+        or _text(prev_cfg.get("doubao_models"))
+        or _text(prev_cfg.get("doubao_model"))
+    )
+    doubao_model = _doubao_model_mirror(doubao_models, preferred_doubao_model)
+    personal_models = _personal_models(
+        _text(data.get("personal_models")) or _text(prev_cfg.get("personal_models")) or _text(prev_cfg.get("personal_model"))
+    )
+    preferred_personal_model = _text(data.get("personal_model")) or _text(prev_cfg.get("personal_model"))
+    personal_model = _personal_model_mirror(personal_models, preferred_personal_model)
+    proxy_port = _proxy_port(_text(data.get("proxy_port")) or _text(prev_cfg.get("proxy_port")))
+
+    normalized_memory_text, normalized_memory_structured = _normalize_memory_payload(
+        global_memory or _text(prev_cfg.get("global_memory")),
+        prev_cfg.get("global_memory_structured", {}),
+    )
+    project["config"] = {
+        "config_version": _config_version(prev_cfg.get("config_version", 2)),
+        "outline": outline or _text(prev_cfg.get("outline")),
+        "reference": reference,
+        "requirements": requirements or _text(prev_cfg.get("requirements")),
+        "word_target": word_target or _text(prev_cfg.get("word_target")),
+        "extra_settings": extra_settings or _text(prev_cfg.get("extra_settings")),
+        "global_memory": normalized_memory_text,
+        "global_memory_structured": normalized_memory_structured,
+        "engine_mode": engine_mode,
+        "codex_model": codex_model,
+        "gemini_model": gemini_model,
+        "claude_model": claude_model,
+        "codex_access_mode": codex_access_mode,
+        "gemini_access_mode": gemini_access_mode,
+        "claude_access_mode": claude_access_mode,
+        "codex_reasoning_effort": codex_reasoning_effort,
+        "gemini_reasoning_effort": gemini_reasoning_effort,
+        "claude_reasoning_effort": claude_reasoning_effort,
+        "doubao_reasoning_effort": doubao_reasoning_effort,
+        "doubao_models": doubao_models,
+        "doubao_model": doubao_model,
+        "personal_models": personal_models,
+        "personal_model": personal_model,
+        "proxy_port": proxy_port,
+    }
+    save_project(project)
+    _apply_runtime_proxy_env(proxy_port)
+
+    result = optimize_reference_prompt(
+        reference=reference,
+        outline=project["config"].get("outline", ""),
+        requirements=project["config"].get("requirements", ""),
+        word_target=project["config"].get("word_target", ""),
+        extra_settings=project["config"].get("extra_settings", ""),
+        global_memory=project["config"].get("global_memory", ""),
+        reasoning_effort=request_reasoning_effort,
+    )
+    if not result.get("success"):
+        return jsonify({"ok": False, "message": result.get("error") or "参考文本总结失败"}), 400
+
+    optimized_reference = _text(result.get("reference"))
+    project = load_project()
+    cfg = project.setdefault("config", {})
+    cfg["reference"] = optimized_reference
+    save_project(project)
+
+    return jsonify(
+        {
+            "ok": True,
+            "reference": optimized_reference,
+            "engine_mode": engine_mode,
+            "model": (
+                doubao_model if engine_mode == "doubao"
+                else personal_model if engine_mode == "personal"
+                else gemini_model if engine_mode == "gemini"
+                else claude_model if engine_mode == "claude"
+                else codex_model
+            ),
+        }
+    )
+
+
 @app.route("/api/generate", methods=["POST"])
 def api_generate():
     data = request.get_json(silent=True) or {}
@@ -1474,6 +1664,7 @@ def api_generate():
     outline = _text(data.get("outline"))
     reference = _text(data.get("reference"))
     requirements = _text(data.get("requirements"))
+    word_target = _text(data.get("word_target"))
     extra_settings = _text(data.get("extra_settings"))
     global_memory = _text(data.get("global_memory"))
     engine_mode = _text(data.get("engine_mode")).lower()
@@ -1499,6 +1690,13 @@ def api_generate():
     doubao_reasoning_effort = _effort(
         _text(data.get("doubao_reasoning_effort")) or _text(prev_cfg.get("doubao_reasoning_effort"))
     )
+    request_reasoning_effort = _selected_effort_for_mode(
+        engine_mode,
+        codex_reasoning_effort=codex_reasoning_effort,
+        gemini_reasoning_effort=gemini_reasoning_effort,
+        claude_reasoning_effort=claude_reasoning_effort,
+        doubao_reasoning_effort=doubao_reasoning_effort,
+    )
     preferred_doubao_model = _text(data.get("doubao_model")) or _text(prev_cfg.get("doubao_model"))
     doubao_models = _doubao_models(
         _text(data.get("doubao_models"))
@@ -1523,6 +1721,7 @@ def api_generate():
         "outline": outline,
         "reference": reference,
         "requirements": requirements,
+        "word_target": word_target,
         "extra_settings": extra_settings,
         "global_memory": normalized_memory_text,
         "global_memory_structured": normalized_memory_structured,
@@ -1551,6 +1750,8 @@ def api_generate():
         outline=outline,
         reference=reference,
         requirements=requirements,
+        word_target=word_target,
+        reasoning_effort=request_reasoning_effort,
         extra_settings=extra_settings,
         global_memory=normalized_memory_text,
         partial_content="",
@@ -1567,6 +1768,8 @@ def api_generate():
         outline=outline,
         reference=reference,
         requirements=requirements,
+        word_target=word_target,
+        reasoning_effort=request_reasoning_effort,
         extra_settings=extra_settings,
         global_memory=normalized_memory_text,
         resume_seed="",
@@ -1753,6 +1956,8 @@ def api_generate_resume():
     outline = str(checkpoint.get("outline", "") or "")
     reference = str(checkpoint.get("reference", "") or "")
     requirements = str(checkpoint.get("requirements", "") or "")
+    word_target = str(checkpoint.get("word_target", "") or "")
+    reasoning_effort = str(checkpoint.get("reasoning_effort", "") or "")
     extra_settings = str(checkpoint.get("extra_settings", "") or "")
     global_memory = str(checkpoint.get("global_memory", "") or "")
     resume_seed = str(
@@ -1765,8 +1970,25 @@ def api_generate_resume():
         outline = str(cfg.get("outline", "") or "")
         reference = str(cfg.get("reference", "") or "")
         requirements = str(cfg.get("requirements", "") or "")
+        word_target = str(cfg.get("word_target", "") or "")
         extra_settings = str(cfg.get("extra_settings", "") or "")
         global_memory = str(cfg.get("global_memory", "") or "")
+        reasoning_effort = _selected_effort_for_mode(
+            cfg.get("engine_mode", "codex"),
+            codex_reasoning_effort=cfg.get("codex_reasoning_effort", "medium"),
+            gemini_reasoning_effort=cfg.get("gemini_reasoning_effort", "medium"),
+            claude_reasoning_effort=cfg.get("claude_reasoning_effort", "medium"),
+            doubao_reasoning_effort=cfg.get("doubao_reasoning_effort", "medium"),
+        )
+    elif not _text(reasoning_effort):
+        cfg = project.get("config", {}) if isinstance(project.get("config"), dict) else {}
+        reasoning_effort = _selected_effort_for_mode(
+            cfg.get("engine_mode", "codex"),
+            codex_reasoning_effort=cfg.get("codex_reasoning_effort", "medium"),
+            gemini_reasoning_effort=cfg.get("gemini_reasoning_effort", "medium"),
+            claude_reasoning_effort=cfg.get("claude_reasoning_effort", "medium"),
+            doubao_reasoning_effort=cfg.get("doubao_reasoning_effort", "medium"),
+        )
 
     request_id = str(
         checkpoint.get("request_id", "")
@@ -1778,6 +2000,8 @@ def api_generate_resume():
         outline=outline,
         reference=reference,
         requirements=requirements,
+        word_target=word_target,
+        reasoning_effort=_effort(reasoning_effort),
         extra_settings=extra_settings,
         global_memory=global_memory,
         resume_seed=resume_seed,
@@ -1787,6 +2011,8 @@ def api_generate_resume():
     checkpoint["state"] = "running"
     checkpoint["task_id"] = task_id
     checkpoint["request_id"] = request_id
+    checkpoint["word_target"] = word_target
+    checkpoint["reasoning_effort"] = _effort(reasoning_effort)
     checkpoint["resume_seed"] = resume_seed
     checkpoint["updated_at"] = _now_text()
     checkpoint["resumed_at"] = _now_text()

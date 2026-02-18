@@ -28,6 +28,7 @@ _GLOBAL_CONFIG_FIELDS = (
     "claude_model",
     "doubao_model",
     "doubao_models",
+    "word_target",
     "codex_access_mode",
     "gemini_access_mode",
     "claude_access_mode",
@@ -77,6 +78,7 @@ def _default_global_config():
                 "doubao-seed-1-6-flash-250828",
             ]
         ),
+        "word_target": "",
         "codex_access_mode": "cli",
         "gemini_access_mode": "cli",
         "claude_access_mode": "cli",
@@ -130,6 +132,7 @@ def _default_project():
             "outline": "",
             "reference": "",
             "requirements": "",
+            "word_target": "",
             "extra_settings": "",
             "global_memory": "",
             "global_memory_structured": {
@@ -182,6 +185,8 @@ def _default_project():
             "outline": "",
             "reference": "",
             "requirements": "",
+            "word_target": "",
+            "reasoning_effort": "medium",
             "extra_settings": "",
             "global_memory": "",
             "partial_content": "",

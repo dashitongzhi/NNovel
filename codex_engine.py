@@ -703,6 +703,24 @@ def _with_reasoning_instruction(prompt, cfg):
     return f"{prefix}{prompt}"
 
 
+def _apply_reasoning_override(cfg, effort_override=None):
+    effort = str(effort_override or "").strip().lower()
+    if not effort:
+        return cfg
+    effort = _normalize_reasoning_effort(effort)
+    next_cfg = dict(cfg or {})
+    mode = str(next_cfg.get("mode", "") or "").strip().lower()
+    if mode == "gemini":
+        next_cfg["gemini_reasoning_effort"] = effort
+    elif mode == "claude":
+        next_cfg["claude_reasoning_effort"] = effort
+    elif mode == "doubao":
+        next_cfg["doubao_reasoning_effort"] = effort
+    else:
+        next_cfg["codex_reasoning_effort"] = effort
+    return next_cfg
+
+
 def _quote_ps_arg(value):
     # Escape for PowerShell double-quoted argument.
     s = str(value or "")
@@ -3112,8 +3130,12 @@ def _build_cli_command_variants(cfg):
     return variants
 
 
-def _run_prompt(prompt):
-    ok, out, err = _run_prompt_with_progress(prompt, on_progress=None)
+def _run_prompt(prompt, reasoning_effort_override=None):
+    ok, out, err = _run_prompt_with_progress(
+        prompt,
+        on_progress=None,
+        reasoning_effort_override=reasoning_effort_override,
+    )
     return ok, out, err
 
 
@@ -3276,7 +3298,30 @@ def _load_cache_summary():
     return cache
 
 
-def generate_novel_batch(outline, reference, requirements, extra_settings, global_memory, draft_so_far):
+def generate_novel_batch(
+    outline,
+    reference,
+    requirements,
+    *args,
+    word_target=None,
+    extra_settings=None,
+    global_memory=None,
+    draft_so_far=None,
+    reasoning_effort=None,
+):
+    # Backward-compatible positional parsing:
+    # old: (extra_settings, global_memory, draft_so_far)
+    # new: (word_target, extra_settings, global_memory, draft_so_far)
+    resolved_word_target = "" if word_target is None else word_target
+    resolved_extra_settings = "" if extra_settings is None else extra_settings
+    resolved_global_memory = "" if global_memory is None else global_memory
+    resolved_draft_so_far = "" if draft_so_far is None else draft_so_far
+    if args:
+        if len(args) == 3:
+            resolved_extra_settings, resolved_global_memory, resolved_draft_so_far = args[:3]
+        elif len(args) >= 4:
+            resolved_word_target, resolved_extra_settings, resolved_global_memory, resolved_draft_so_far = args[:4]
+
     cache_summary = _load_cache_summary()
     prompt = f"""你是一位中文长篇小说作者，请基于以下信息继续写作。
 
@@ -3289,17 +3334,20 @@ def generate_novel_batch(outline, reference, requirements, extra_settings, globa
 【写作要求】
 {requirements or "无"}
 
+【字数设定】
+{resolved_word_target or "无"}
+
 【补充设定】
-{extra_settings or "无"}
+{resolved_extra_settings or "无"}
 
 【全局记忆】
-{global_memory or "无"}
+{resolved_global_memory or "无"}
 
 【已完成章节摘要】
 {cache_summary}
 
 【当前已写草稿】
-{draft_so_far or "（暂无）"}
+{resolved_draft_so_far or "（暂无）"}
 
 请严格输出约{CHARS_PER_BATCH}字中文小说正文，要求：
 1. 只输出正文内容，不要标题、编号、解释、注释、前言、后记。
@@ -3309,7 +3357,7 @@ def generate_novel_batch(outline, reference, requirements, extra_settings, globa
 5. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
 """
 
-    ok, raw, err = _run_prompt(prompt)
+    ok, raw, err = _run_prompt(prompt, reasoning_effort_override=reasoning_effort)
     if not ok:
         return {"success": False, "content": "", "error": err}
 
@@ -3319,7 +3367,28 @@ def generate_novel_batch(outline, reference, requirements, extra_settings, globa
     return {"success": True, "content": content, "error": None}
 
 
-def generate_outline(outline_seed, reference, requirements, extra_settings, global_memory):
+def generate_outline(
+    outline_seed,
+    reference,
+    requirements,
+    *args,
+    word_target=None,
+    extra_settings=None,
+    global_memory=None,
+    reasoning_effort=None,
+):
+    # Backward-compatible positional parsing:
+    # old: (extra_settings, global_memory)
+    # new: (word_target, extra_settings, global_memory)
+    resolved_word_target = "" if word_target is None else word_target
+    resolved_extra_settings = "" if extra_settings is None else extra_settings
+    resolved_global_memory = "" if global_memory is None else global_memory
+    if args:
+        if len(args) == 2:
+            resolved_extra_settings, resolved_global_memory = args[:2]
+        elif len(args) >= 3:
+            resolved_word_target, resolved_extra_settings, resolved_global_memory = args[:3]
+
     prompt = f"""你是中文长篇小说策划编辑，请输出一份可直接用于写作的大纲。
 
 【已有大纲（可为空）】
@@ -3331,11 +3400,14 @@ def generate_outline(outline_seed, reference, requirements, extra_settings, glob
 【写作要求】
 {requirements or "无"}
 
+【字数设定】
+{resolved_word_target or "无"}
+
 【补充设定】
-{extra_settings or "无"}
+{resolved_extra_settings or "无"}
 
 【全局记忆】
-{global_memory or "无"}
+{resolved_global_memory or "无"}
 
 输出要求：
 1. 直接输出大纲正文，不要任何前言、解释、注释。
@@ -3344,7 +3416,7 @@ def generate_outline(outline_seed, reference, requirements, extra_settings, glob
 4. 不要输出 Markdown 代码块。
 """
 
-    ok, raw, err = _run_prompt(prompt)
+    ok, raw, err = _run_prompt(prompt, reasoning_effort_override=reasoning_effort)
     if not ok:
         return {"success": False, "outline": "", "error": err}
 
@@ -3354,7 +3426,29 @@ def generate_outline(outline_seed, reference, requirements, extra_settings, glob
     return {"success": True, "outline": outline, "error": None}
 
 
-def polish_draft(draft_content, polish_requirements, reference, requirements, extra_settings, global_memory):
+def polish_draft(
+    draft_content,
+    polish_requirements,
+    reference,
+    requirements,
+    *args,
+    word_target=None,
+    extra_settings=None,
+    global_memory=None,
+    reasoning_effort=None,
+):
+    # Backward-compatible positional parsing:
+    # old: (extra_settings, global_memory)
+    # new: (word_target, extra_settings, global_memory)
+    resolved_word_target = "" if word_target is None else word_target
+    resolved_extra_settings = "" if extra_settings is None else extra_settings
+    resolved_global_memory = "" if global_memory is None else global_memory
+    if args:
+        if len(args) == 2:
+            resolved_extra_settings, resolved_global_memory = args[:2]
+        elif len(args) >= 3:
+            resolved_word_target, resolved_extra_settings, resolved_global_memory = args[:3]
+
     prompt = f"""你是中文小说润色编辑。请在不改变核心剧情事实与人物关系的前提下，润色下列正文。
 
 【待润色正文】
@@ -3369,11 +3463,14 @@ def polish_draft(draft_content, polish_requirements, reference, requirements, ex
 【写作要求】
 {requirements or "无"}
 
+【字数设定】
+{resolved_word_target or "无"}
+
 【补充设定】
-{extra_settings or "无"}
+{resolved_extra_settings or "无"}
 
 【全局记忆】
-{global_memory or "无"}
+{resolved_global_memory or "无"}
 
 输出要求：
 1. 仅输出润色后的正文，不要解释、注释、前言、后记。
@@ -3382,7 +3479,7 @@ def polish_draft(draft_content, polish_requirements, reference, requirements, ex
 4. 不输出 Markdown 代码块。
 """
 
-    ok, raw, err = _run_prompt(prompt)
+    ok, raw, err = _run_prompt(prompt, reasoning_effort_override=reasoning_effort)
     if not ok:
         return {"success": False, "content": "", "error": err}
 
@@ -3390,6 +3487,62 @@ def polish_draft(draft_content, polish_requirements, reference, requirements, ex
     if not content:
         return {"success": False, "content": "", "error": "润色结果为空"}
     return {"success": True, "content": content, "error": None}
+
+
+def optimize_reference_prompt(
+    reference,
+    outline="",
+    requirements="",
+    word_target="",
+    extra_settings="",
+    global_memory="",
+    reasoning_effort=None,
+):
+    prompt = f"""你是中文长篇小说提示词工程师。请把“原始参考文本”优化为高信息密度、低冗余、可直接用于模型写作的提示词。
+
+【原始参考文本】
+{reference or "无"}
+
+【故事大纲】
+{outline or "无"}
+
+【写作要求】
+{requirements or "无"}
+
+【字数设定】
+{word_target or "无"}
+
+【补充设定】
+{extra_settings or "无"}
+
+【全局记忆】
+{global_memory or "无"}
+
+输出规则（必须遵守）：
+1. 只输出“优化后的参考文本”，不要任何解释、前言、后记、注释。
+2. 必须按以下顺序输出 8 个小节：
+   类型定位
+   结构逻辑
+   人物系统
+   设定规则
+   语言风格
+   情绪曲线
+   爽点机制
+   主题价值观与可量化参数
+3. 每个小节只保留可执行信息：关键约束、关键角色、规则边界、冲突推进、节奏节点、明确指标。
+4. 删除重复与空泛措辞，避免形容词堆叠；保留可落地的创作指令。
+5. 字数控制在原文本的 30%-60%，但不少于 220 字。
+6. 不要输出 Markdown 代码块。
+"""
+
+    ok, raw, err = _run_prompt(prompt, reasoning_effort_override=reasoning_effort)
+    if not ok:
+        return {"success": False, "reference": "", "error": err}
+
+    optimized = _clean_outline_text(raw)
+    if not optimized:
+        return {"success": False, "reference": "", "error": "总结结果为空"}
+    return {"success": True, "reference": optimized, "error": None}
 
 
 def _select_thinking_text(elapsed_seconds, clean_text_length):
@@ -3455,6 +3608,7 @@ def _run_prompt_with_progress(
     should_stop=None,
     on_process_start=None,
     on_process_end=None,
+    reasoning_effort_override=None,
 ):
     def _run_single_engine(
         cmd,
@@ -3622,6 +3776,7 @@ def _run_prompt_with_progress(
                     pass
 
     cfg = _get_engine_config()
+    cfg = _apply_reasoning_override(cfg, reasoning_effort_override)
     prompt = _with_reasoning_instruction(prompt, cfg)
     timeout_seconds = _get_engine_timeout(cfg["mode"])
     access_mode = _get_engine_runtime_access(cfg, cfg.get("mode", ""))
@@ -3707,15 +3862,31 @@ def generate_novel_with_progress(
     outline,
     reference,
     requirements,
-    extra_settings,
-    global_memory,
-    draft_so_far,
+    *args,
+    word_target=None,
+    extra_settings=None,
+    global_memory=None,
+    draft_so_far=None,
+    reasoning_effort=None,
     on_progress=None,
     should_stop=None,
     on_process_start=None,
     on_process_end=None,
     request_id="",
 ):
+    # Backward-compatible positional parsing:
+    # old: (extra_settings, global_memory, draft_so_far)
+    # new: (word_target, extra_settings, global_memory, draft_so_far)
+    resolved_word_target = "" if word_target is None else word_target
+    resolved_extra_settings = "" if extra_settings is None else extra_settings
+    resolved_global_memory = "" if global_memory is None else global_memory
+    resolved_draft_so_far = "" if draft_so_far is None else draft_so_far
+    if args:
+        if len(args) == 3:
+            resolved_extra_settings, resolved_global_memory, resolved_draft_so_far = args[:3]
+        elif len(args) >= 4:
+            resolved_word_target, resolved_extra_settings, resolved_global_memory, resolved_draft_so_far = args[:4]
+
     cache_summary = _load_cache_summary()
     prompt = f"""你是一位中文长篇小说作者，请基于以下信息继续写作。
 
@@ -3728,17 +3899,20 @@ def generate_novel_with_progress(
 【写作要求】
 {requirements or "无"}
 
+【字数设定】
+{resolved_word_target or "无"}
+
 【补充设定】
-{extra_settings or "无"}
+{resolved_extra_settings or "无"}
 
 【全局记忆】
-{global_memory or "无"}
+{resolved_global_memory or "无"}
 
 【已完成章节摘要】
 {cache_summary}
 
 【当前已写草稿】
-{draft_so_far or "（暂无）"}
+{resolved_draft_so_far or "（暂无）"}
 
 请严格输出约{CHARS_PER_BATCH}字中文小说正文，要求：
 1. 只输出正文内容，不要标题、编号、解释、注释、前言、后记。
@@ -3757,6 +3931,7 @@ def generate_novel_with_progress(
         should_stop=should_stop,
         on_process_start=on_process_start,
         on_process_end=on_process_end,
+        reasoning_effort_override=reasoning_effort,
     )
     if not ok:
         return {"success": False, "content": "", "error": err}
@@ -4071,6 +4246,7 @@ def check_chapter_consistency(
     outline="",
     reference="",
     requirements="",
+    word_target="",
     extra_settings="",
 ):
     chapter = str(chapter_text or "").strip()
@@ -4112,6 +4288,9 @@ def check_chapter_consistency(
 
 【写作要求】
 {requirements or "无"}
+
+【字数设定】
+{word_target or "无"}
 
 【补充设定】
 {extra_settings or "无"}

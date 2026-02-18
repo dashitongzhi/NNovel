@@ -554,6 +554,7 @@ def save_chapter_with_title(content, title):
         outline=str(config.get("outline", "") or ""),
         reference=str(config.get("reference", "") or ""),
         requirements=str(config.get("requirements", "") or ""),
+        word_target=str(config.get("word_target", "") or ""),
         extra_settings=str(config.get("extra_settings", "") or ""),
     )
     if consistency_result.get("success"):
