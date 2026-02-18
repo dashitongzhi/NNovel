@@ -62,6 +62,9 @@ interface GenerationState {
 
 let pollTimer: number | null = null;
 let typingTimer: number | null = null;
+let typingUsingRaf = false;
+let typingCarryMs = 0;
+let typingLastFrameTs = 0;
 let streamTarget = "";
 let streamIndex = 0;
 let streamFinal = false;
@@ -303,10 +306,17 @@ function stopPolling(): void {
 }
 
 function stopTyping(): void {
-  if (typingTimer) {
-    window.clearTimeout(typingTimer);
+  if (typingTimer != null) {
+    if (typingUsingRaf) {
+      window.cancelAnimationFrame(typingTimer);
+    } else {
+      window.clearTimeout(typingTimer);
+    }
     typingTimer = null;
   }
+  typingUsingRaf = false;
+  typingCarryMs = 0;
+  typingLastFrameTs = 0;
 }
 
 function resetStreamingState(): void {
@@ -451,24 +461,26 @@ function queueStreamingPreview(content: string, finalize = false): void {
   useGenerationStore.setState({ skipVisible: streamFinal && streamIndex < streamTarget.length });
 
   if (typingTimer) return;
+  typingCarryMs = Math.max(typingCarryMs, Math.max(10, state.typewriterSpeed));
+  typingLastFrameTs = 0;
 
-  const tick = () => {
-    const latest = useGenerationStore.getState();
-
-    if (streamIndex < streamTarget.length) {
-      streamIndex += 1;
-      useGenerationStore.setState({
-        generatedText: streamTarget.slice(0, streamIndex),
-        skipVisible: streamFinal && streamIndex < streamTarget.length,
-      });
-      if (latest.stage === "queued") {
-        setStage("generating");
-      }
-      typingTimer = window.setTimeout(tick, Math.max(10, latest.typewriterSpeed));
+  const scheduleNext = () => {
+    if (typeof window.requestAnimationFrame === "function") {
+      typingUsingRaf = true;
+      typingTimer = window.requestAnimationFrame(tick);
       return;
     }
+    typingUsingRaf = false;
+    typingTimer = window.setTimeout(() => {
+      tick(Date.now());
+    }, 16);
+  };
 
+  const completeStream = () => {
     typingTimer = null;
+    typingUsingRaf = false;
+    typingCarryMs = 0;
+    typingLastFrameTs = 0;
     if (streamFinal) {
       finalizeGeneratedOutput(streamTarget, true);
     } else {
@@ -476,8 +488,49 @@ function queueStreamingPreview(content: string, finalize = false): void {
     }
   };
 
-  // Start typewriter immediately on first available content, then continue at configured speed.
-  tick();
+  const tick = (frameTs: number) => {
+    const latest = useGenerationStore.getState();
+    if (streamIndex >= streamTarget.length) {
+      completeStream();
+      return;
+    }
+
+    const now = Number.isFinite(frameTs) ? frameTs : Date.now();
+    if (!typingLastFrameTs) typingLastFrameTs = now;
+    let delta = now - typingLastFrameTs;
+    if (!Number.isFinite(delta) || delta < 0) delta = 0;
+    if (delta > 120) delta = 120;
+    typingLastFrameTs = now;
+
+    const speed = Math.max(10, latest.typewriterSpeed);
+    typingCarryMs += delta;
+    let step = Math.floor(typingCarryMs / speed);
+    if (step <= 0) {
+      scheduleNext();
+      return;
+    }
+    typingCarryMs -= step * speed;
+    step = Math.max(1, Math.min(step, 24));
+
+    const remaining = streamTarget.length - streamIndex;
+    streamIndex += Math.min(step, remaining);
+    useGenerationStore.setState({
+      generatedText: streamTarget.slice(0, streamIndex),
+      skipVisible: streamFinal && streamIndex < streamTarget.length,
+    });
+    if (latest.stage === "queued") {
+      setStage("generating");
+    }
+
+    if (streamIndex >= streamTarget.length) {
+      completeStream();
+      return;
+    }
+    scheduleNext();
+  };
+
+  // Start with one scheduled frame. The carry value ensures immediate visible progress.
+  scheduleNext();
 }
 
 function nextPollingDelay(startedAt: number): number {

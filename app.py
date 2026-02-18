@@ -5,9 +5,10 @@ import subprocess
 import os
 import signal
 import sys
+from urllib.parse import quote
 from datetime import datetime
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 from chapter_manager import (
     ensure_output_dir,
@@ -66,6 +67,8 @@ _DISCARDED_MAX_ITEMS = 200
 _GEN_CHECKPOINT_KEY = "generation_checkpoint"
 _PAUSE_SNAPSHOT_KEY = "pause_snapshot"
 _DEFAULT_PERSONAL_MODEL = "deepseek-ai/deepseek-v3.2"
+_BACKGROUND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "background")
+_BACKGROUND_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"}
 _DEFAULT_DOUBAO_MODELS = (
     "doubao-seed-1-6-251015",
     "doubao-seed-1-6-lite-251015",
@@ -145,6 +148,70 @@ def _proxy_port(v):
     if 1 <= n <= 65535:
         return str(n)
     return "10808"
+
+
+def _background_label(file_name):
+    name = str(file_name or "").strip()
+    if not name:
+        return ""
+    base, _ = os.path.splitext(name)
+    return base.strip() or name
+
+
+def _background_safe_path(file_name):
+    raw_name = str(file_name or "").strip()
+    if not raw_name:
+        return ""
+    base_name = os.path.basename(raw_name)
+    if base_name != raw_name:
+        return ""
+    _, ext = os.path.splitext(base_name)
+    if ext.lower() not in _BACKGROUND_EXTENSIONS:
+        return ""
+    target = os.path.realpath(os.path.join(_BACKGROUND_DIR, base_name))
+    root = os.path.realpath(_BACKGROUND_DIR)
+    if target != root and not target.startswith(root + os.sep):
+        return ""
+    if not os.path.isfile(target):
+        return ""
+    return target
+
+
+def _list_background_items():
+    rows = []
+    if not os.path.isdir(_BACKGROUND_DIR):
+        return rows
+
+    try:
+        entries = list(os.scandir(_BACKGROUND_DIR))
+    except OSError:
+        return rows
+
+    for entry in entries:
+        try:
+            if not entry.is_file():
+                continue
+            file_name = str(entry.name or "").strip()
+            if not file_name:
+                continue
+            _, ext = os.path.splitext(file_name)
+            if ext.lower() not in _BACKGROUND_EXTENSIONS:
+                continue
+            stat = entry.stat()
+            mtime = int(getattr(stat, "st_mtime", 0) or 0)
+            rows.append(
+                {
+                    "id": file_name,
+                    "name": _background_label(file_name),
+                    "url": f"/api/background/file/{quote(file_name)}?v={mtime}",
+                    "mtime": mtime,
+                }
+            )
+        except OSError:
+            continue
+
+    rows.sort(key=lambda item: (str(item.get("name", "")).lower(), str(item.get("id", "")).lower()))
+    return rows
 
 
 def _apply_runtime_proxy_env(proxy_port):
@@ -1045,6 +1112,19 @@ def api_engine_test_connectivity():
 def api_engine_prewarm():
     started = _start_background_prewarm(force=False)
     return jsonify({"ok": True, "started": bool(started)})
+
+
+@app.route("/api/background/library", methods=["GET"])
+def api_background_library():
+    return jsonify({"items": _list_background_items()})
+
+
+@app.route("/api/background/file/<path:file_name>", methods=["GET"])
+def api_background_file(file_name):
+    target = _background_safe_path(os.path.basename(str(file_name or "")))
+    if not target:
+        return jsonify({"ok": False, "message": "背景文件不存在"}), 404
+    return send_file(target, conditional=True)
 
 
 @app.route("/api/self-check", methods=["GET"])

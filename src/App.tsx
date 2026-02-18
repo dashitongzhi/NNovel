@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Toolbar } from "@/components/layout/Toolbar";
 import { DraftPanel } from "@/components/layout/DraftPanel";
@@ -8,7 +8,7 @@ import { ModalHost } from "@/components/modals/ModalHost";
 import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
 import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
-import { BACKGROUND_LIBRARY, DEFAULT_BACKGROUND_ID, type BackgroundItem } from "@/config/backgroundLibrary";
+import { DEFAULT_BACKGROUND_ID, type BackgroundItem } from "@/config/backgroundLibrary";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
 import { useGenerationStore } from "@/stores/generationStore";
@@ -22,6 +22,7 @@ import { optimizeReference } from "@/services/endpoints/reference";
 import { getBooks, createBook, switchBook } from "@/services/endpoints/books";
 import { listChapters, getChapter, deleteChapter, type ChapterItem } from "@/services/endpoints/chapters";
 import { uploadTxt } from "@/services/endpoints/upload";
+import { getBackgroundLibrary } from "@/services/endpoints/backgrounds";
 import {
   getAuthFile,
   getSettingsFile,
@@ -35,6 +36,14 @@ import {
 import { getSelfCheck, getStatus, prewarmEngine, saveProxyPort, testConnectivity } from "@/services/endpoints/runtime";
 import type { AppConfig, BookshelfPayload, ConsistencyConflict, ModelHealthRow, StartupStatus } from "@/types/domain";
 
+function modeLabel(mode: AppConfig["engine_mode"]): string {
+  if (mode === "personal") return "个人配置";
+  if (mode === "doubao") return "Doubao";
+  if (mode === "claude") return "Claude";
+  if (mode === "gemini") return "Gemini";
+  return "ChatGPT";
+}
+
 function statusText(stage: string, isPaused: boolean, isWriting: boolean): string {
   if (isPaused) return "已暂停";
   if (isWriting || stage === "queued" || stage === "generating" || stage === "finishing") return "AI正在创作...";
@@ -43,14 +52,6 @@ function statusText(stage: string, isPaused: boolean, isWriting: boolean): strin
   if (stage === "error") return "状态异常";
   if (stage === "stopped") return "已停止";
   return "就绪";
-}
-
-function modeLabel(mode: AppConfig["engine_mode"]): string {
-  if (mode === "personal") return "个人配置";
-  if (mode === "doubao") return "Doubao";
-  if (mode === "claude") return "Claude";
-  if (mode === "gemini") return "Gemini";
-  return "ChatGPT";
 }
 
 function themeModeLabel(mode: ThemeMode): string {
@@ -297,6 +298,33 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function normalizeRuntimeBackgroundItems(items: unknown): BackgroundItem[] {
+  if (!Array.isArray(items)) return [];
+  const seen = new Set<string>();
+  const rows: BackgroundItem[] = [];
+  items.forEach((item) => {
+    const id = String((item as { id?: unknown })?.id || "").trim();
+    const name = String((item as { name?: unknown })?.name || "").trim();
+    const url = String((item as { url?: unknown })?.url || "").trim();
+    if (!id || !name || !url) return;
+    if (seen.has(id)) return;
+    seen.add(id);
+    rows.push({ id, name, url });
+  });
+  return rows;
+}
+
+function sameBackgroundItems(a: BackgroundItem[], b: BackgroundItem[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (!left || !right) return false;
+    if (left.id !== right.id || left.name !== right.name || left.url !== right.url) return false;
+  }
+  return true;
+}
+
 function deriveSecondaryTextColor(primaryHex: string): string {
   const normalized = normalizeHexColor(primaryHex) || "#1d1d1f";
   const hex = normalized.slice(1);
@@ -534,12 +562,12 @@ function App() {
   const [customTextColor, setCustomTextColor] = useState<string>(() => readTextColor());
   const [appearanceFontOpen, setAppearanceFontOpen] = useState(false);
   const [appearanceBackgroundOpen, setAppearanceBackgroundOpen] = useState(false);
+  const [builtinBackgrounds, setBuiltinBackgrounds] = useState<BackgroundItem[]>([]);
   const [customBackgrounds, setCustomBackgrounds] = useState<BackgroundItem[]>(() => readCustomBackgroundLibrary());
   const [activeBackgroundId, setActiveBackgroundId] = useState<string>(() => {
-    const fallback = DEFAULT_BACKGROUND_ID;
     const raw = String(localStorage.getItem(BACKGROUND_IMAGE_KEY) || "").trim();
-    if (!raw) return fallback;
-    return (BACKGROUND_LIBRARY.some((item) => item.id === raw) || readCustomBackgroundLibrary().some((item) => item.id === raw)) ? raw : fallback;
+    if (!raw) return DEFAULT_BACKGROUND_ID;
+    return raw;
   });
   const backgroundFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -547,7 +575,6 @@ function App() {
   const [cacheExpanded, setCacheExpanded] = useState(() => readBoolSetting(CACHE_BOX_EXPANDED_KEY, true));
   const [stageTimelineEnabled, setStageTimelineEnabled] = useState(() => readBoolSetting(STAGE_TIMELINE_ENABLED_KEY, true));
 
-  const [tick, setTick] = useState(Date.now());
   const [doubaoModelEditorRows, setDoubaoModelEditorRows] = useState<string[]>(["doubao-seed-1-6-251015"]);
 
   const debugUiAction = (tag: string, extra?: Record<string, unknown>): void => {
@@ -579,17 +606,34 @@ function App() {
   const fontSizeRangeProgress = ((fontSizePx - 13) / (20 - 13)) * 100;
   const typewriterRangeStyle = { "--range-progress": `${Math.max(0, Math.min(100, typewriterRangeProgress))}%` } as CSSProperties;
   const fontSizeRangeStyle = { "--range-progress": `${Math.max(0, Math.min(100, fontSizeRangeProgress))}%` } as CSSProperties;
+
+  const refreshBuiltinBackgroundLibrary = useCallback(
+    async (silent = true): Promise<void> => {
+      try {
+        const payload = await getBackgroundLibrary();
+        const next = normalizeRuntimeBackgroundItems(payload?.items);
+        setBuiltinBackgrounds((prev) => (sameBackgroundItems(prev, next) ? prev : next));
+      } catch (error) {
+        if (!silent) {
+          const message = error instanceof Error ? error.message : "背景库读取失败";
+          ui.addToast(`背景库读取失败: ${message}`, "error");
+        }
+      }
+    },
+    [ui]
+  );
+
   const backgroundLibrary = useMemo(() => {
     const seen = new Set<string>();
     const rows: BackgroundItem[] = [];
-    [...customBackgrounds, ...BACKGROUND_LIBRARY].forEach((item) => {
+    [...customBackgrounds, ...builtinBackgrounds].forEach((item) => {
       const id = String(item?.id || "").trim();
       if (!id || seen.has(id)) return;
       seen.add(id);
       rows.push(item);
     });
     return rows;
-  }, [customBackgrounds]);
+  }, [customBackgrounds, builtinBackgrounds]);
 
   const refreshRuntimeStatus = async (silent = false): Promise<void> => {
     try {
@@ -693,11 +737,8 @@ function App() {
         await reloadBookshelf();
       }
     })();
-
-    const timer = window.setInterval(() => setTick(Date.now()), 300);
     return () => {
       active = false;
-      window.clearInterval(timer);
     };
   }, []);
 
@@ -834,14 +875,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!generation.autoScroll) return;
-    const el = document.getElementById("generated-content");
-    if (el) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [generation.generatedText, generation.autoScroll]);
-
-  useEffect(() => {
     localStorage.setItem(CACHE_BOX_ENABLED_KEY, String(cacheEnabled));
     if (!cacheEnabled) {
       setCacheExpanded(false);
@@ -869,6 +902,19 @@ function App() {
       void reloadBookshelf();
     }
   }, [configStore.config.first_run_required]);
+
+  useEffect(() => {
+    void refreshBuiltinBackgroundLibrary(true);
+  }, [refreshBuiltinBackgroundLibrary]);
+
+  useEffect(() => {
+    if (!appearanceBackgroundOpen) return;
+    void refreshBuiltinBackgroundLibrary(true);
+    const timer = window.setInterval(() => {
+      void refreshBuiltinBackgroundLibrary(true);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [appearanceBackgroundOpen, refreshBuiltinBackgroundLibrary]);
 
   useEffect(() => {
     try {
@@ -973,16 +1019,7 @@ function App() {
     };
   }, [modelContextMenu.open]);
 
-  const stageDurations = useMemo(() => {
-    const next = { ...generation.stageDurations };
-    if (
-      (generation.stage === "queued" || generation.stage === "generating" || generation.stage === "finishing") &&
-      generation.stageSince > 0
-    ) {
-      next[generation.stage] += tick - generation.stageSince;
-    }
-    return next;
-  }, [generation.stageDurations, generation.stage, generation.stageSince, tick]);
+  const stageDurations = useMemo(() => ({ ...generation.stageDurations }), [generation.stageDurations]);
 
   const personalModalModelRows = useMemo(
     () => normalizeModelList(personalModelEditorRows.join("\n"), "deepseek-ai/deepseek-v3.2"),
@@ -1019,9 +1056,9 @@ function App() {
   const toolbarStatusOverride = useMemo<"" | "就绪" | "异常" | "成功">(() => {
     if (generation.stage === "error") return "异常";
     if (generation.stage === "completed") return "就绪";
-    if ((generation.stage === "generating" || generation.stage === "finishing") && generation.generatedText.trim()) return "成功";
+    if (generation.stage === "generating" || generation.stage === "finishing") return "成功";
     return "";
-  }, [generation.stage, generation.generatedText]);
+  }, [generation.stage]);
 
   const personalConfigReady = useMemo(() => {
     return Boolean(
@@ -1349,12 +1386,12 @@ function App() {
   };
 
   const handleAccept = async (): Promise<void> => {
-    await draftStore.acceptGenerated(generation.generatedText);
+    await draftStore.acceptGenerated(useGenerationStore.getState().generatedText);
     generation.clearGenerated();
   };
 
   const handleRewrite = async (): Promise<void> => {
-    const added = await draftStore.deleteGenerated(generation.generatedText);
+    const added = await draftStore.deleteGenerated(useGenerationStore.getState().generatedText);
     generation.clearGenerated();
     if (added) {
       await discarded.load();

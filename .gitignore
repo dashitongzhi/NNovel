@@ -24,4 +24,6 @@ dist-ssr
 *.sw?
 data/books/selfcheck-book/novel/chapter_002_第2章_旧表滴答声.txt
 auth.json
+auth.prev.json
 data/
+.claude/

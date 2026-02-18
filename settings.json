@@ -7,6 +7,7 @@
     "claude_model": "sonnet",
     "doubao_model": "doubao-seed-1-6-251015",
     "doubao_models": "doubao-seed-1-6-251015\ndoubao-seed-1-6-lite-251015\ndoubao-seed-1-6-flash-250828",
+    "word_target": "",
     "codex_access_mode": "cli",
     "gemini_access_mode": "cli",
     "claude_access_mode": "cli",

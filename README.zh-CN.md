@@ -427,6 +427,5 @@ react_test/
 ### 14) 鸣谢
 
 - 感谢开源项目 [rdev/liquid-glass-react](https://github.com/rdev/liquid-glass-react)，本项目在液态玻璃风格与交互实现上借鉴了其设计思路。
-- 借鉴范围仅限视觉风格与交互表现，不包含业务逻辑、数据结构与后端实现。
 
 ---

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import LiquidGlass from "liquid-glass-react";
 import type { CSSProperties, ReactNode } from "react";
 import { DEMO_BUTTON_PRESET, DEMO_CARD_PRESET, GLOBAL_LIQUID_PRESETS } from "@/config/liquidGlassPresets";
@@ -16,6 +16,33 @@ interface LiquidGlassFrameProps {
   interactive?: boolean;
 }
 
+interface GlassErrorBoundaryProps {
+  fallback: ReactNode;
+  onError?: () => void;
+  children: ReactNode;
+}
+
+interface GlassErrorBoundaryState {
+  failed: boolean;
+}
+
+class GlassErrorBoundary extends Component<GlassErrorBoundaryProps, GlassErrorBoundaryState> {
+  state: GlassErrorBoundaryState = { failed: false };
+
+  static getDerivedStateFromError(): GlassErrorBoundaryState {
+    return { failed: true };
+  }
+
+  componentDidCatch(): void {
+    this.props.onError?.();
+  }
+
+  render() {
+    if (this.state.failed) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
 export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
   const {
     children,
@@ -31,7 +58,10 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
   const liquidProfile = useUiStore((state) => state.liquidProfile);
   const strictCloneMode = useUiStore((state) => state.strictCloneMode);
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const [runtimeSafe, setRuntimeSafe] = useState(false);
+  const [runtimeFailed, setRuntimeFailed] = useState(false);
   const toolbarLike = className.includes("liquid-glass-toolbar-shell");
+  const hiddenClass = className.split(/\s+/).includes("hidden");
 
   const forceStaticByRuntime = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -47,13 +77,48 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
 
   const freezeCloneCardMotion = strictCloneMode && className.includes("liquid-glass-card-shell");
 
+  useEffect(() => {
+    setRuntimeFailed(false);
+  }, [id, className, strictCloneMode, liquidProfile, dynamic, interactive]);
+
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || hiddenClass) {
+      setRuntimeSafe(false);
+      return;
+    }
+    let rafId: number | null = null;
+    const updateRuntimeSafe = (): void => {
+      const target = frameRef.current;
+      if (!target) {
+        setRuntimeSafe(false);
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      const css = window.getComputedStyle(target);
+      const visible = css.display !== "none" && css.visibility !== "hidden";
+      const safe = visible && rect.width >= 6 && rect.height >= 6;
+      setRuntimeSafe((prev) => (prev === safe ? prev : safe));
+    };
+    updateRuntimeSafe();
+    rafId = window.requestAnimationFrame(updateRuntimeSafe);
+    const resizeObserver = new ResizeObserver(() => {
+      updateRuntimeSafe();
+    });
+    resizeObserver.observe(el);
+    return () => {
+      if (rafId != null) window.cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
+  }, [hiddenClass]);
+
   // In software-render mode, force static fill for all surfaces (including toolbar)
   // to avoid SVG filter + displacement cost.
   // In strict clone mode, card shells are also forced static to avoid white flicker
   // when mouse moves near sidebar/scrollbar hot zones.
   const softwareStaticSurface = forceStaticByRuntime || freezeCloneCardMotion;
   const freezeMotion = softwareStaticSurface || !dynamic;
-  const useLiquidRuntime = !softwareStaticSurface;
+  const useLiquidRuntime = !softwareStaticSurface && runtimeSafe && !runtimeFailed && !hiddenClass;
 
   const profilePreset = useMemo(() => {
     if (toolbarLike) return DEMO_BUTTON_PRESET;
@@ -90,30 +155,32 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
           aria-hidden="true"
         >
           {useLiquidRuntime ? (
-            <LiquidGlass
-              className="liquid-glass-native"
-              mode={activePreset.mode}
-              displacementScale={activePreset.displacementScale}
-              blurAmount={activePreset.blurAmount}
-              saturation={activePreset.saturation}
-              aberrationIntensity={activePreset.aberrationIntensity}
-              elasticity={activePreset.elasticity}
-              cornerRadius={resolvedCornerRadius}
-              padding="0px"
-              overLight={overLight}
-              mouseContainer={freezeMotion ? null : frameRef}
-              globalMousePos={freezeMotion ? { x: 0, y: 0 } : undefined}
-              mouseOffset={freezeMotion ? { x: 0, y: 0 } : undefined}
-              style={{
-                position: "absolute",
-                width: "100%",
-                height: "100%",
-                top: "50%",
-                left: "50%",
-              }}
-            >
-              <span className="liquid-glass-native-fill" />
-            </LiquidGlass>
+            <GlassErrorBoundary fallback={<div className="liquid-glass-static-fill" />} onError={() => setRuntimeFailed(true)}>
+              <LiquidGlass
+                className="liquid-glass-native"
+                mode={activePreset.mode}
+                displacementScale={activePreset.displacementScale}
+                blurAmount={activePreset.blurAmount}
+                saturation={activePreset.saturation}
+                aberrationIntensity={activePreset.aberrationIntensity}
+                elasticity={activePreset.elasticity}
+                cornerRadius={resolvedCornerRadius}
+                padding="0px"
+                overLight={overLight}
+                mouseContainer={freezeMotion ? null : frameRef}
+                globalMousePos={freezeMotion ? { x: 0, y: 0 } : undefined}
+                mouseOffset={freezeMotion ? { x: 0, y: 0 } : undefined}
+                style={{
+                  position: "absolute",
+                  width: "100%",
+                  height: "100%",
+                  top: "50%",
+                  left: "50%",
+                }}
+              >
+                <span className="liquid-glass-native-fill" />
+              </LiquidGlass>
+            </GlassErrorBoundary>
           ) : (
             <div className="liquid-glass-static-fill" />
           )}

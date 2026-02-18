@@ -5,7 +5,6 @@
 ### 1) Overview
 
 `NNovel React` is a desktop novel-writing application built with `React + TypeScript + Vite` on the frontend, `Electron` as the desktop shell, and `Flask` for backend APIs.  
-The project keeps the original layout while upgrading style and interaction quality: liquid-glass UI, full writing workflow, multi-engine switching, chapter/book management, background/font customization, and GPU rendering diagnostics.
 
 ### 2) Project Outcomes (Current)
 
@@ -405,5 +404,4 @@ react_test/
 ### 14) Acknowledgements
 
 - Special thanks to [rdev/liquid-glass-react](https://github.com/rdev/liquid-glass-react). This project borrows design ideas from that library for liquid-glass style and interactions.
-- The borrowed scope is limited to visual style and interaction behavior, not business logic, data structures, or backend implementation.
 
