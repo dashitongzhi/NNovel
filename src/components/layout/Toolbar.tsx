@@ -6,6 +6,7 @@ import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 interface ToolbarProps {
   sidebarCollapsed: boolean;
   discardedVisible: boolean;
+  hasInfoItems: boolean;
   dynamicEffectsEnabled: boolean;
   interactionsLocked?: boolean;
   config: AppConfig;
@@ -61,18 +62,16 @@ function modeDefaultModelFromConfig(config: AppConfig, mode: AppConfig["engine_m
 export function Toolbar(props: ToolbarProps) {
   const ICONS = {
     sidebar: "☰",
-    outline:
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>',
+    outline: "📑",
     selfCheck: "🧪",
-    newBook:
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><path d="M12 7v6"></path><path d="M9 10h6"></path></svg>',
+    newBook: "➕",
     bookshelf: "📚",
     chapters: "📖",
     health: "🩺",
-    info: "🔔",
     discarded: "🗑️",
     settings: "⚙️",
   } as const;
+  const infoIcon = props.hasInfoItems ? "📬" : "📭";
 
   const engineMode = (props.config.engine_mode || "codex") as AppConfig["engine_mode"];
   const statusReady = modeReadyFromStatus(props.status, props.config);
@@ -174,18 +173,9 @@ export function Toolbar(props: ToolbarProps) {
                 if (!interactionsLocked) setEngineMenuOpen((v) => !v);
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-                <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
-                <rect x="9" y="9" width="6" height="6" />
-                <line x1="9" y1="1" x2="9" y2="4" />
-                <line x1="15" y1="1" x2="15" y2="4" />
-                <line x1="9" y1="20" x2="9" y2="23" />
-                <line x1="15" y1="20" x2="15" y2="23" />
-                <line x1="20" y1="9" x2="23" y2="9" />
-                <line x1="20" y1="14" x2="23" y2="14" />
-                <line x1="1" y1="9" x2="4" y2="9" />
-                <line x1="1" y1="14" x2="4" y2="14" />
-              </svg>
+              <span aria-hidden="true" style={{ marginRight: 6, lineHeight: 1 }}>
+                🔲
+              </span>
               <span>模型: {ENGINE_LABELS[engineMode] || "ChatGPT"}</span>
             </button>
             <div id="engine-picker-menu" className={`engine-picker-menu glass-panel ${visibleEngineMenuOpen ? "" : "hidden"}`}>
@@ -209,7 +199,11 @@ export function Toolbar(props: ToolbarProps) {
           {IconBtn({ id: "bookshelf-btn", title: "打开书架", icon: ICONS.bookshelf, onClick: props.onOpenBookshelf })}
           {IconBtn({ title: "章节管理", icon: ICONS.chapters, onClick: props.onOpenChapters })}
           {IconBtn({ title: "模型健康面板", icon: ICONS.health, onClick: props.onOpenModelHealth })}
-          {IconBtn({ title: "打开信息箱", icon: ICONS.info, onClick: props.onOpenInfoBox })}
+          {IconBtn({
+            title: props.hasInfoItems ? "打开信息箱（有信息）" : "打开信息箱（无信息）",
+            icon: infoIcon,
+            onClick: props.onOpenInfoBox,
+          })}
           {IconBtn({ title: "查看废弃稿件", icon: ICONS.discarded, active: props.discardedVisible, onClick: props.onToggleDiscarded })}
           {IconBtn({ title: "系统设置", icon: ICONS.settings, onClick: props.onOpenSettings })}
         </div>

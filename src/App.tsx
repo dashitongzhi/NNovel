@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Toolbar } from "@/components/layout/Toolbar";
 import { DraftPanel } from "@/components/layout/DraftPanel";
@@ -8,7 +8,7 @@ import { ModalHost } from "@/components/modals/ModalHost";
 import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
 import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
-import { BACKGROUND_LIBRARY, DEFAULT_BACKGROUND_ID } from "@/config/backgroundLibrary";
+import { BACKGROUND_LIBRARY, DEFAULT_BACKGROUND_ID, type BackgroundItem } from "@/config/backgroundLibrary";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
 import { useGenerationStore } from "@/stores/generationStore";
@@ -70,6 +70,9 @@ const CACHE_BOX_ENABLED_KEY = "writer:cacheBoxEnabled";
 const CACHE_BOX_EXPANDED_KEY = "writer:cacheBoxExpanded";
 const STAGE_TIMELINE_ENABLED_KEY = "writer:stageTimelineEnabled";
 const BACKGROUND_IMAGE_KEY = "writer:backgroundImage";
+const CUSTOM_BACKGROUND_LIBRARY_KEY = "writer:customBackgroundLibrary";
+const CUSTOM_BACKGROUND_ID_PREFIX = "custom-bg-";
+const CUSTOM_BACKGROUND_MAX_COUNT = 24;
 const FONT_PRESET_KEY = "writer:fontPreset";
 const FONT_SIZE_KEY = "writer:fontSizePx";
 const FONT_WEIGHT_KEY = "writer:fontWeightBold";
@@ -257,6 +260,40 @@ function normalizeHexColor(raw: string): string | null {
 
 function readTextColor(): string {
   return normalizeHexColor(String(localStorage.getItem(TEXT_COLOR_KEY) || "")) || "#1d1d1f";
+}
+
+function readCustomBackgroundLibrary(): BackgroundItem[] {
+  try {
+    const raw = String(localStorage.getItem(CUSTOM_BACKGROUND_LIBRARY_KEY) || "").trim();
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => ({
+        id: String(item?.id || "").trim(),
+        name: String(item?.name || "").trim(),
+        url: String(item?.url || "").trim(),
+      }))
+      .filter((item) => item.id.startsWith(CUSTOM_BACKGROUND_ID_PREFIX) && item.name && item.url)
+      .slice(0, CUSTOM_BACKGROUND_MAX_COUNT);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCustomBackgroundName(fileName: string): string {
+  const decoded = decodeURIComponent(String(fileName || "").trim());
+  const base = decoded.replace(/\.[^.]+$/, "").trim();
+  return base || "自定义背景";
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function deriveSecondaryTextColor(primaryHex: string): string {
@@ -495,12 +532,14 @@ function App() {
   const [customTextColor, setCustomTextColor] = useState<string>(() => readTextColor());
   const [appearanceFontOpen, setAppearanceFontOpen] = useState(false);
   const [appearanceBackgroundOpen, setAppearanceBackgroundOpen] = useState(false);
+  const [customBackgrounds, setCustomBackgrounds] = useState<BackgroundItem[]>(() => readCustomBackgroundLibrary());
   const [activeBackgroundId, setActiveBackgroundId] = useState<string>(() => {
     const fallback = DEFAULT_BACKGROUND_ID;
     const raw = String(localStorage.getItem(BACKGROUND_IMAGE_KEY) || "").trim();
     if (!raw) return fallback;
-    return BACKGROUND_LIBRARY.some((item) => item.id === raw) ? raw : fallback;
+    return (BACKGROUND_LIBRARY.some((item) => item.id === raw) || readCustomBackgroundLibrary().some((item) => item.id === raw)) ? raw : fallback;
   });
+  const backgroundFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [cacheEnabled, setCacheEnabled] = useState(() => readBoolSetting(CACHE_BOX_ENABLED_KEY, true));
   const [cacheExpanded, setCacheExpanded] = useState(() => readBoolSetting(CACHE_BOX_EXPANDED_KEY, true));
@@ -538,6 +577,17 @@ function App() {
   const fontSizeRangeProgress = ((fontSizePx - 13) / (20 - 13)) * 100;
   const typewriterRangeStyle = { "--range-progress": `${Math.max(0, Math.min(100, typewriterRangeProgress))}%` } as CSSProperties;
   const fontSizeRangeStyle = { "--range-progress": `${Math.max(0, Math.min(100, fontSizeRangeProgress))}%` } as CSSProperties;
+  const backgroundLibrary = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: BackgroundItem[] = [];
+    [...customBackgrounds, ...BACKGROUND_LIBRARY].forEach((item) => {
+      const id = String(item?.id || "").trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      rows.push(item);
+    });
+    return rows;
+  }, [customBackgrounds]);
 
   const refreshRuntimeStatus = async (silent = false): Promise<void> => {
     try {
@@ -694,16 +744,32 @@ function App() {
   useEffect(() => {
     const root = document.documentElement;
     let hideTimer: number | null = null;
+    let frameToken: number | null = null;
+    const isSettingsScrollTarget = (target: EventTarget | null): boolean =>
+      target instanceof Element && Boolean(target.closest(".settings-modal-scroll"));
     const markScrolling = () => {
-      root.classList.add("ui-scrolling");
-      if (hideTimer != null) window.clearTimeout(hideTimer);
-      hideTimer = window.setTimeout(() => {
-        root.classList.remove("ui-scrolling");
-      }, 520);
+      if (frameToken != null) return;
+      frameToken = window.requestAnimationFrame(() => {
+        frameToken = null;
+        root.classList.add("ui-scrolling");
+        if (hideTimer != null) window.clearTimeout(hideTimer);
+        hideTimer = window.setTimeout(() => {
+          root.classList.remove("ui-scrolling");
+        }, 380);
+      });
     };
-    const onWheel = () => markScrolling();
-    const onTouchMove = () => markScrolling();
-    const onScrollCapture = () => markScrolling();
+    const onWheel = (event: WheelEvent) => {
+      if (isSettingsScrollTarget(event.target)) return;
+      markScrolling();
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (isSettingsScrollTarget(event.target)) return;
+      markScrolling();
+    };
+    const onScrollCapture = (event: Event) => {
+      if (isSettingsScrollTarget(event.target)) return;
+      markScrolling();
+    };
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     document.addEventListener("scroll", onScrollCapture, true);
@@ -711,8 +777,42 @@ function App() {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("scroll", onScrollCapture, true);
+      if (frameToken != null) window.cancelAnimationFrame(frameToken);
       if (hideTimer != null) window.clearTimeout(hideTimer);
       root.classList.remove("ui-scrolling");
+    };
+  }, []);
+
+  useEffect(() => {
+    const timers = new Map<HTMLElement, number>();
+    const resolveContainer = (target: EventTarget | null): HTMLElement | null => {
+      if (!(target instanceof Element)) return null;
+      const node = target.closest(".settings-modal-scroll");
+      return node instanceof HTMLElement ? node : null;
+    };
+    const markSettingsScrolling = (container: HTMLElement): void => {
+      container.classList.add("is-scrolling");
+      const prev = timers.get(container);
+      if (prev != null) window.clearTimeout(prev);
+      const timer = window.setTimeout(() => {
+        container.classList.remove("is-scrolling");
+        timers.delete(container);
+      }, 420);
+      timers.set(container, timer);
+    };
+    const onSettingsScrollCapture = (event: Event): void => {
+      const container = resolveContainer(event.target);
+      if (!container) return;
+      markSettingsScrolling(container);
+    };
+    document.addEventListener("scroll", onSettingsScrollCapture, true);
+    return () => {
+      document.removeEventListener("scroll", onSettingsScrollCapture, true);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      timers.clear();
+      document.querySelectorAll(".settings-modal-scroll.is-scrolling").forEach((node) => {
+        if (node instanceof HTMLElement) node.classList.remove("is-scrolling");
+      });
     };
   }, []);
 
@@ -767,6 +867,20 @@ function App() {
       void reloadBookshelf();
     }
   }, [configStore.config.first_run_required]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUSTOM_BACKGROUND_LIBRARY_KEY, JSON.stringify(customBackgrounds));
+    } catch {
+      // localStorage 可能超限；保持内存态可用。
+    }
+  }, [customBackgrounds]);
+
+  useEffect(() => {
+    if (!backgroundLibrary.length) return;
+    if (activeBackgroundId && backgroundLibrary.some((item) => item.id === activeBackgroundId)) return;
+    setActiveBackgroundId(backgroundLibrary[0]?.id || "");
+  }, [activeBackgroundId, backgroundLibrary]);
 
   useEffect(() => {
     if (!activeBackgroundId) {
@@ -1390,9 +1504,42 @@ function App() {
   };
 
   const applyBackgroundImage = (id: string): void => {
-    if (!BACKGROUND_LIBRARY.some((item) => item.id === id)) return;
+    if (!backgroundLibrary.some((item) => item.id === id)) return;
     setActiveBackgroundId(id);
     ui.addToast("背景已应用", "success");
+  };
+
+  const openBackgroundFilePicker = (): void => {
+    backgroundFileInputRef.current?.click();
+  };
+
+  const handleBackgroundFilePick = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (!String(file.type || "").toLowerCase().startsWith("image/")) {
+      ui.addToast("请选择图片文件", "warning");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const name = normalizeCustomBackgroundName(file.name);
+      const id = `${CUSTOM_BACKGROUND_ID_PREFIX}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const nextItem: BackgroundItem = { id, name, url: dataUrl };
+      const next = [nextItem, ...customBackgrounds.filter((item) => item.url !== dataUrl)].slice(0, CUSTOM_BACKGROUND_MAX_COUNT);
+      try {
+        localStorage.setItem(CUSTOM_BACKGROUND_LIBRARY_KEY, JSON.stringify(next));
+      } catch {
+        ui.addToast("图片过大，保存失败，请换一张更小的图片", "error");
+        return;
+      }
+      setCustomBackgrounds(next);
+      setActiveBackgroundId(id);
+      ui.addToast("已添加并应用背景", "success");
+    } catch {
+      ui.addToast("读取图片失败，请重试", "error");
+    }
   };
 
   const saveDoubaoConfigFromModal = async (): Promise<void> => {
@@ -1912,9 +2059,11 @@ function App() {
   ]
     .filter(Boolean)
     .join(" ");
+  const strictCloneEnabled = ui.strictCloneMode;
+  const liquidDynamicEnabled = strictCloneEnabled && !engineSwitching;
   const activeBackground = useMemo(
-    () => BACKGROUND_LIBRARY.find((item) => item.id === activeBackgroundId) || BACKGROUND_LIBRARY[0] || null,
-    [activeBackgroundId],
+    () => backgroundLibrary.find((item) => item.id === activeBackgroundId) || backgroundLibrary[0] || null,
+    [activeBackgroundId, backgroundLibrary],
   );
   const activeBackgroundStyle = useMemo(
     () => ({
@@ -1954,7 +2103,8 @@ function App() {
           <Toolbar
             sidebarCollapsed={ui.sidebarCollapsed}
             discardedVisible={discarded.visible}
-            dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
+            hasInfoItems={ui.infoItems.length > 0}
+            dynamicEffectsEnabled={liquidDynamicEnabled}
             interactionsLocked={generation.isWriting || engineSwitching}
             config={configStore.config}
             status={runtimeStatus}
@@ -1983,7 +2133,7 @@ function App() {
           <DiscardedPanel
             visible={discarded.visible}
             items={discarded.items}
-            dynamicEffectsEnabled={ui.dynamicEffectsEnabled}
+            dynamicEffectsEnabled={liquidDynamicEnabled}
             onRestore={(id) => void restoreDiscarded(id)}
             onDelete={(id) => void discarded.remove(id)}
           />
@@ -1996,7 +2146,7 @@ function App() {
               polishLoading={draftPolishing}
               cacheEnabled={cacheEnabled}
               cacheExpanded={cacheEnabled && cacheExpanded}
-              dynamicEffectsEnabled={ui.dynamicEffectsEnabled && !engineSwitching}
+              dynamicEffectsEnabled={liquidDynamicEnabled}
               onChange={draftStore.setContent}
               onPolish={() => void handlePolishDraft()}
               onSplitChapter={() => void handleSplitChapter()}
@@ -2028,7 +2178,7 @@ function App() {
                 && generation.stage !== "stopped"
               }
               autoScroll={generation.autoScroll}
-              dynamicEffectsEnabled={ui.dynamicEffectsEnabled && !engineSwitching}
+              dynamicEffectsEnabled={liquidDynamicEnabled}
               onStartStop={() => void handleStartStop()}
               onPauseResume={() => void handlePauseResume()}
               onSkip={() => void handleSkipAnimation()}
@@ -2102,9 +2252,9 @@ function App() {
                     type="range"
                     min={10}
                     max={80}
-                    step={5}
+                    step={1}
                     value={typewriterSpeedValue}
-                    onChange={(e) => generation.setTypewriterSpeed(Number(e.target.value || 30))}
+                    onChange={(e) => generation.setTypewriterSpeed(Math.max(10, Math.min(80, Math.round(Number(e.target.value || 30)))))}
                     onPointerDown={() => setTypewriterRangeSliding(true)}
                     onPointerUp={() => setTypewriterRangeSliding(false)}
                     onPointerCancel={() => setTypewriterRangeSliding(false)}
@@ -2375,9 +2525,27 @@ function App() {
           </div>
           <div className="settings-modal-scroll">
             <div className="settings-section">
-              {BACKGROUND_LIBRARY.length ? (
+              <div className="background-picker-toolbar">
+                <button
+                  id="appearance-background-add-btn"
+                  className="btn btn-sm btn-primary background-picker-add-btn"
+                  type="button"
+                  onClick={openBackgroundFilePicker}
+                >
+                  添加图片
+                </button>
+                <input
+                  ref={backgroundFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
+                  onChange={(event) => void handleBackgroundFilePick(event)}
+                  style={{ display: "none" }}
+                />
+                <p className="background-picker-help">支持 JPG / PNG / WebP / AVIF / GIF。添加后可立即预览并设为背景。</p>
+              </div>
+              {backgroundLibrary.length ? (
                 <div className="background-picker-grid">
-                  {BACKGROUND_LIBRARY.map((item) => {
+                  {backgroundLibrary.map((item) => {
                     const active = item.id === activeBackgroundId;
                     return (
                       <div key={item.id} className={`background-picker-item ${active ? "active" : ""}`}>
@@ -2400,7 +2568,7 @@ function App() {
                   })}
                 </div>
               ) : (
-                <p className="settings-desc">未检测到背景图片，请将图片放入项目根目录的 background 文件夹。</p>
+                <p className="settings-desc">暂无背景图片，请点击“添加图片”导入。</p>
               )}
             </div>
           </div>
@@ -2434,27 +2602,6 @@ function App() {
                   <span className="ios-switch-slider" />
                 </span>
               </label>
-              <label className="ios-switch-row" htmlFor="dynamic-effects-enabled">
-                <span className="settings-label">液态玻璃动态交互（激进）</span>
-                <span className="ios-switch">
-                  <input id="dynamic-effects-enabled" type="checkbox" checked={ui.dynamicEffectsEnabled} onChange={(e) => ui.setDynamicEffectsEnabled(e.target.checked)} />
-                  <span className="ios-switch-slider" />
-                </span>
-              </label>
-              <div className="settings-row">
-                <label className="settings-label">液态玻璃档位</label>
-                <div className="settings-control">
-                  <ConfigSelect
-                    value={ui.liquidProfile}
-                    onChange={(value) => ui.setLiquidProfile(value as "balanced" | "aggressive" | "experimental")}
-                    options={[
-                      { value: "balanced", label: "平衡（稳定）" },
-                      { value: "aggressive", label: "激进（接近演示）" },
-                      { value: "experimental", label: "实验（Shader）" },
-                    ]}
-                  />
-                </div>
-              </div>
               <label className="ios-switch-row" htmlFor="strict-clone-mode-enabled">
                 <span className="settings-label">完全复刻 UI（除按钮尺寸）</span>
                 <span className="ios-switch">
@@ -2470,6 +2617,8 @@ function App() {
                         ui.setDynamicEffectsEnabled(true);
                         ui.addToast("已启用完全复刻 UI", "success");
                       } else {
+                        ui.setLiquidProfile("balanced");
+                        ui.setDynamicEffectsEnabled(false);
                         ui.addToast("已关闭完全复刻 UI", "info");
                       }
                     }}
@@ -2477,7 +2626,7 @@ function App() {
                   <span className="ios-switch-slider" />
                 </span>
               </label>
-              <p className="settings-desc">开启后默认使用更强动态折射；关闭后使用更保守稳定的液态玻璃参数。</p>
+              <p className="settings-desc">开启后应用完整复刻风格；关闭后恢复普通样式。</p>
             </div>
           </div>
           <div className="modal-actions">

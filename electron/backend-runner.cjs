@@ -2,11 +2,10 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 const runtimeRoot = path.resolve(__dirname, "..");
-const nnovelRoot = path.resolve(__dirname, "..", "..", "..", "NNovel");
 const backendPort = Number(process.env.NNOVEL_BACKEND_PORT || 5050);
 const pythonCode = [
   "import sys",
-  `sys.path.insert(0, r'''${nnovelRoot}''')`,
+  `sys.path.insert(0, r'''${runtimeRoot}''')`,
   "import app as nnovel_app",
   `nnovel_app.app.run(host='127.0.0.1', port=${backendPort}, debug=False, use_reloader=False)`,
 ].join(";");

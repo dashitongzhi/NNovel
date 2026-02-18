@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 小说写作助手</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Memory Highlight Overlay */
+        .memory-container {
+            position: relative;
+            width: 100%;
+        }
+        .textarea-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            padding: 12px; /* Must match textarea padding */
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-y: auto;
+            z-index: 5;
+            display: none;
+            box-sizing: border-box;
+        }
+        .textarea-overlay.active {
+            display: block;
+        }
+        .highlight-line {
+            background-color: rgba(255, 215, 0, 0.3);
+            border-radius: 2px;
+            transition: background-color 0.5s;
+        }
+        [data-theme="dark"] .highlight-line {
+            background-color: rgba(255, 215, 0, 0.2);
+        }
+
+        /* Memory Preview Modal */
+        .memory-preview-content {
+            width: 600px;
+            max-width: 90vw;
+        }
+        .memory-stat-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(0,0,0,0.03);
+            border-radius: 8px;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .stat-count {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .stat-added .stat-count { color: var(--success); }
+        .stat-replaced .stat-count { color: var(--warning); }
+        .stat-unchanged .stat-count { color: var(--text-secondary); }
+
+        .memory-preview-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        .memory-change-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 12px;
+        }
+        .memory-change-item:last-child {
+            border-bottom: none;
+        }
+        .change-tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            width: 60px;
+        }
+        .tag-added { background: rgba(52, 199, 89, 0.15); color: var(--success); }
+        .tag-replaced { background: rgba(255, 149, 0, 0.15); color: var(--warning); }
+        .tag-unchanged { background: rgba(110, 110, 115, 0.15); color: var(--text-secondary); }
+        
+        .change-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .change-key {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .change-diff {
+            color: var(--text-secondary);
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .diff-old { text-decoration: line-through; opacity: 0.7; margin-bottom: 2px; }
+        .diff-new { color: var(--text-primary); }
+
+        /* Consistency Check Modal */
+        .consistency-modal-content {
+            width: 680px;
+            max-width: 92vw;
+            max-height: 82vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .consistency-summary {
+            margin: 0 0 12px 0;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .consistency-conflict-list {
+            max-height: 52vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.02);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .consistency-item {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+        .consistency-head {
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: var(--warning);
+        }
+        .consistency-line {
+            margin-top: 4px;
+            color: var(--text-secondary);
+            word-break: break-word;
+        }
+        .consistency-line strong {
+            color: var(--text-primary);
+        }
+
+        /* Draft Loading Overlay */
+        .draft-loading {
+            position: absolute;
+            top: 49px; /* Height of card-header approx */
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+            color: var(--text-secondary);
+            font-size: 14px;
+            gap: 12px;
+        }
+        [data-theme="dark"] .draft-loading {
+            background: rgba(30, 30, 30, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 左侧配置面板 -->
+        <aside id="config-panel" class="sidebar">
+            <div class="panel-section">
+                <div class="section-header">
+                    <h3>大纲设定</h3>
+                    <button class="import-btn" onclick="document.getElementById('file-outline').click()">导入文件</button>
+                    <input type="file" id="file-outline" accept=".txt" style="display: none" onchange="handleFileImport('outline')">
+                </div>
+                <textarea id="outline-input" placeholder="输入小说大纲..."></textarea>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <h3>参考文本</h3>
+                    <button class="import-btn" onclick="document.getElementById('file-reference').click()">导入文件</button>
+                    <input type="file" id="file-reference" accept=".txt" style="display: none" onchange="handleFileImport('reference')">
+                </div>
+                <textarea id="reference-input" placeholder="输入风格参考或上下文..."></textarea>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <h3>特殊要求</h3>
+                </div>
+                <textarea id="requirements-input" placeholder="输入本章特殊要求..."></textarea>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <h3>全局记忆</h3>
+                </div>
+                <div class="memory-container">
+                    <textarea id="global_memory-input" placeholder="简要记录角色、状态、地名等重要事项，随剧情更新..."></textarea>
+                    <div id="memory-highlight-overlay" class="textarea-overlay"></div>
+                </div>
+                <div class="config-hint">建议简要更新，避免重复与冗长</div>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <h3>补充设定</h3>
+                </div>
+                <textarea id="extra_settings-input" placeholder="输入补充设定（角色详细设定、世界观、剧情细节等）..."></textarea>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <h3>生成引擎</h3>
+                </div>
+                <select id="engine-mode" class="config-input hidden">
+                    <option value="codex" selected>ChatGPT</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="claude">Claude</option>
+                    <option value="doubao">Doubao</option>
+                    <option value="personal">个人配置</option>
+                </select>
+                <div id="codex-settings">
+                    <select id="codex-model-select" class="config-input config-select-btn">
+                        <option value="gpt-5.1-codex-mini">GPT-5.1-Mini</option>
+                        <option value="gpt-5.1-codex-max">GPT-5.1-Max</option>
+                        <option value="gpt-5.2">GPT-5.2</option>
+                        <option value="gpt-5.3-codex">GPT-5.3</option>
+                    </select>
+                    <select id="codex-reasoning-select" class="config-input config-select-btn">
+                        <option value="low">思考等级：低</option>
+                        <option value="medium" selected>思考等级：中</option>
+                        <option value="high">思考等级：高</option>
+                    </select>
+                </div>
+                <div id="gemini-settings" class="hidden">
+                    <select id="gemini-model-select" class="config-input config-select-btn">
+                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                        <option value="gemini-3-flash">gemini-3-flash</option>
+                        <option value="gemini-3-pro">gemini-3-pro</option>
+                    </select>
+                    <select id="gemini-reasoning-select" class="config-input config-select-btn">
+                        <option value="low">思考等级：低</option>
+                        <option value="medium" selected>思考等级：中</option>
+                        <option value="high">思考等级：高</option>
+                    </select>
+                </div>
+                <div id="claude-settings" class="hidden">
+                    <select id="claude-model-select" class="config-input config-select-btn">
+                        <option value="sonnet">sonnet</option>
+                        <option value="opus">opus</option>
+                        <option value="haiku">haiku</option>
+                    </select>
+                    <select id="claude-reasoning-select" class="config-input config-select-btn">
+                        <option value="low">思考等级：低</option>
+                        <option value="medium" selected>思考等级：中</option>
+                        <option value="high">思考等级：高</option>
+                    </select>
+                </div>
+                <div id="doubao-settings" class="hidden">
+                    <select id="doubao-model-select" class="config-input config-select-btn"></select>
+                    <select id="doubao-reasoning-select" class="config-input config-select-btn">
+                        <option value="low">思考等级：低</option>
+                        <option value="medium" selected>思考等级：中</option>
+                        <option value="high">思考等级：高</option>
+                    </select>
+                    <div class="config-hint">豆包密钥请通过环境变量设置：DOUBAO_API_KEY 或 ARK_API_KEY</div>
+                </div>
+                <div id="personal-settings" class="hidden">
+                    <select id="personal-model-select" class="config-input config-select-btn"></select>
+                    <button id="personal-config-btn" class="btn btn-primary btn-sm" type="button" onclick="openPersonalConfigModal()">打开个人配置</button>
+                    <div class="config-hint">状态：<span id="personal-config-status">未配置</span></div>
+                </div>
+            </div>
+            <div class="panel-actions">
+                <button id="save-config-btn" class="btn btn-primary">保存配置</button>
+                <button id="sidebar-start-writing-btn" class="btn btn-success">开始写作</button>
+            </div>
+        </aside>
+
+        <!-- 中间主区域 -->
+        <main id="center-area">
+            
+            <!-- 工具栏 -->
+            <section id="extra-settings">
+                <div id="toolbar-container" class="section-header top-toolbar-row" style="padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <!-- JS will render toolbar here -->
+                </div>
+            </section>
+
+            <section id="discarded-drafts-panel" class="hidden">
+                <div class="card discarded-panel-card">
+                    <div class="card-header">
+                        <h3>废弃稿件</h3>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="status-text" id="discarded-count-text">0 条</span>
+                            <button id="discarded-collapse-btn" class="icon-btn" title="收起面板">▲</button>
+                        </div>
+                    </div>
+                    <div id="discarded-drafts-list" class="discarded-list">
+                        <div class="discarded-empty">（暂无废弃稿件）</div>
+                    </div>
+                    <div id="discarded-pagination" class="discarded-pagination hidden"></div>
+                </div>
+            </section>
+
+            <!-- 下方：写作台 -->
+            <section id="writing-desk">
+                <!-- 左边：草稿箱 + 缓存区 -->
+                <div class="desk-column">
+                    <div id="draft-box" class="card" style="flex: 1; min-height: 0; position: relative;">
+                        <div class="card-header">
+                            <h3>草稿箱 <span id="draft-char-count" class="badge">0字</span></h3>
+                            <button id="split-chapter-btn" class="btn btn-warning btn-sm">分章保存</button>
+                        </div>
+                        <div id="draft-content" contenteditable="false" class="editable-area draft-readonly"></div>
+                        <div id="draft-loading-overlay" class="draft-loading hidden">
+                            <div class="thinking-spinner" style="width: 32px; height: 32px;"></div>
+                            <span>正在保存，并进行记忆/连贯性校验...</span>
+                        </div>
+                    </div>
+
+                    <!-- 缓存区 -->
+                    <div id="cache-box" class="card">
+                        <div class="card-header" onclick="toggleCache()">
+                            <h3>📦 缓存区 <span style="font-size: 12px; font-weight: normal; color: var(--text-secondary); margin-left: 8px;">(点击展开)</span></h3>
+                        </div>
+                        <div id="cache-content" class="cache-content hidden">
+                            <pre id="cache-text" class="cache-pre">（暂无缓存内容）</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右边：生成区 -->
+                <div id="generation-area" class="card">
+                    <div class="card-header">
+                        <h3 style="display: flex; align-items: center; gap: 8px;">
+                            AI 作家
+                            <div class="status-indicator-wrapper" style="display: flex; align-items: center; gap: 6px; margin-left: 8px;">
+                                <span id="status-dot" class="status-dot ready"></span>
+                                <span id="status-text" class="status-text">就绪</span>
+                            </div>
+                            <span id="ref-status" class="status-text" style="display:none; font-size: 12px; margin-left: 4px; color: var(--accent);"></span>
+                        </h3>
+                        <div class="toolbar">
+                            <button id="pause-writing-btn" class="btn btn-warning btn-sm writer-icon-btn hidden" onclick="togglePauseWriting()" title="暂停写作" aria-label="暂停写作"><span class="btn-icon-text" aria-hidden="true">⏸</span></button>
+                            <button id="start-writing-btn" class="btn btn-success btn-sm writer-icon-btn" title="开始写作" aria-label="开始写作"><span class="btn-icon-text" aria-hidden="true">▶</span></button>
+                            <button id="skip-anim-btn" class="btn btn-sm btn-primary writer-icon-btn hidden" onclick="skipAnimation()" title="跳过动画" aria-label="跳过动画"><span class="btn-icon-text" aria-hidden="true">⏭</span></button>
+                            <button id="auto-scroll-btn" class="btn btn-sm btn-primary writer-icon-btn active" title="自动滚动: 开" aria-label="自动滚动: 开" onclick="toggleAutoScroll()"><span class="btn-icon-text" aria-hidden="true">▼</span></button>
+                        </div>
+                    </div>
+                    <div id="generation-stage-track" class="generation-stage-track">
+                        <div class="stage-item" data-stage="queued">
+                            <span class="stage-name">排队</span>
+                            <span class="stage-time">0.0s</span>
+                        </div>
+                        <div class="stage-item" data-stage="generating">
+                            <span class="stage-name">生成</span>
+                            <span class="stage-time">0.0s</span>
+                        </div>
+                        <div class="stage-item" data-stage="finishing">
+                            <span class="stage-name">收尾</span>
+                            <span class="stage-time">0.0s</span>
+                        </div>
+                        <div class="stage-item" data-stage="completed">
+                            <span class="stage-name">完成</span>
+                            <span class="stage-time">0.0s</span>
+                        </div>
+                    </div>
+                    <div id="generated-content" class="content-area"></div>
+                    <div id="gen-actions" class="card-footer hidden">
+                        <button id="accept-btn" class="btn btn-success">接受</button>
+                        <button id="delete-btn" class="btn btn-danger">重写</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 分章标题弹窗 -->
+    <div id="title-modal" class="modal-overlay hidden">
+        <div class="modal-content title-modal-content">
+            <h3>章节标题确认</h3>
+            <p class="modal-desc">AI 已为您生成章节标题，您可以修改或直接保存。</p>
+            <input type="text" id="chapter-title-input" class="large-input" placeholder="输入章节标题..." autocomplete="off">
+            <div class="modal-actions">
+                <button id="modal-confirm-btn" class="btn btn-success btn-lg">确认保存</button>
+                <button id="modal-cancel-btn" class="btn btn-danger btn-lg">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header settings-modal-header">
+                <button class="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭设置" onclick="closeSettingsModal()">×</button>
+                <h3>系统设置</h3>
+                <button class="icon-btn settings-modal-header-icon-btn save-btn" type="button" aria-label="保存设置" onclick="saveSettingsModal()">✓</button>
+            </div>
+            <div class="settings-modal-scroll">
+                <div class="settings-section">
+                    <h4>主题外观</h4>
+                    <div class="theme-options">
+                        <label class="theme-option">
+                            <input type="radio" name="theme" value="light">
+                            <span class="theme-label">☀️ 浅色模式</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="theme" value="dark">
+                            <span class="theme-label">🌙 深色模式</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="theme" value="auto">
+                            <span class="theme-label">💻 跟随系统</span>
+                        </label>
+                    </div>
+                    <p class="settings-desc">选择界面的外观风格，"跟随系统"将自动匹配您的操作系统设置。</p>
+                </div>
+
+                <div class="settings-section">
+                    <h4>生成区设置</h4>
+                    <div class="settings-row">
+                        <label for="typewriter-speed" class="settings-label">打字机速度</label>
+                        <div class="settings-control">
+                            <input id="typewriter-speed" type="range" min="10" max="80" step="5">
+                            <span id="typewriter-speed-value" class="settings-value">30ms/字</span>
+                        </div>
+                    </div>
+                    <label class="settings-toggle">
+                        <input type="checkbox" id="typewriter-enabled">
+                        <span>启用打字机动画</span>
+                    </label>
+                    <p class="settings-desc">关闭后生成内容将直接显示，不再逐字播放。</p>
+                </div>
+
+                <div class="settings-section">
+                    <h4>网络代理</h4>
+                    <div class="settings-row">
+                        <label for="proxy-port-input" class="settings-label">代理端口</label>
+                        <div class="settings-control">
+                            <input id="proxy-port-input" class="settings-number-input" type="text" inputmode="numeric" value="10808" placeholder="10808">
+                        </div>
+                    </div>
+                    <p class="settings-desc">Gemini、Claude 和 ChatGPT 每次执行时会临时使用 http://127.0.0.1:端口 代理，不修改系统全局环境。</p>
+                </div>
+
+                <div class="settings-section">
+                    <h4>模型配置</h4>
+                    <button id="doubao-config-btn" class="settings-entry-btn" type="button">
+                        <span>豆包</span>
+                        <span class="settings-entry-arrow">›</span>
+                    </button>
+                </div>
+
+                <div class="settings-section">
+                    <h4>高级设置</h4>
+                    <button id="open-assist-settings-btn" class="settings-entry-btn" type="button">
+                        <span>辅助功能</span>
+                        <span class="settings-entry-arrow">›</span>
+                    </button>
+                    <button id="open-access-settings-btn" class="settings-entry-btn" type="button">
+                        <span>调用方式</span>
+                        <span class="settings-entry-arrow">›</span>
+                    </button>
+                    <button class="settings-entry-btn" type="button" onclick="openSettingsJsonModal()">
+                        <span>打开 settings.json</span>
+                        <span class="settings-entry-arrow">›</span>
+                    </button>
+                    <button class="settings-entry-btn" type="button" onclick="openAuthJsonModal()">
+                        <span>打开 auth.json</span>
+                        <span class="settings-entry-arrow">›</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 辅助功能弹窗 -->
+    <div id="assist-settings-modal" class="modal-overlay hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h3>辅助功能</h3>
+                <button class="icon-btn" onclick="closeAssistSettingsModal()">×</button>
+            </div>
+            <div class="settings-modal-scroll">
+                <div class="settings-section">
+                    <label class="ios-switch-row" for="cache-box-enabled">
+                        <span class="settings-label">启用缓存区</span>
+                        <span class="ios-switch">
+                            <input type="checkbox" id="cache-box-enabled" checked>
+                            <span class="ios-switch-slider"></span>
+                        </span>
+                    </label>
+                    <label class="ios-switch-row" for="stage-timeline-enabled">
+                        <span class="settings-label">显示阶段时间线</span>
+                        <span class="ios-switch">
+                            <input type="checkbox" id="stage-timeline-enabled" checked>
+                            <span class="ios-switch-slider"></span>
+                        </span>
+                    </label>
+                    <p class="settings-desc">关闭后将隐藏对应界面模块，不影响实际写作生成流程。</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" type="button" onclick="closeAssistSettingsModal()">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 调用方式弹窗 -->
+    <div id="access-settings-modal" class="modal-overlay hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h3>调用方式</h3>
+                <button class="icon-btn" onclick="closeAccessSettingsModal()">×</button>
+            </div>
+            <div class="settings-modal-scroll">
+                <div class="settings-section">
+                    <div class="settings-row">
+                        <label for="codex-access-mode" class="settings-label">ChatGPT</label>
+                        <div class="settings-control">
+                            <select id="codex-access-mode" class="config-input config-select-btn">
+                                <option value="cli">CLI</option>
+                                <option value="api">API</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="codex-api-key-input" class="settings-label">ChatGPT API Key</label>
+                        <div class="settings-control">
+                            <input id="codex-api-key-input" class="settings-number-input hidden" type="password">
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="gemini-access-mode" class="settings-label">Gemini</label>
+                        <div class="settings-control">
+                            <select id="gemini-access-mode" class="config-input config-select-btn">
+                                <option value="cli">CLI</option>
+                                <option value="api">API</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="gemini-api-key-input" class="settings-label">Gemini API Key</label>
+                        <div class="settings-control">
+                            <input id="gemini-api-key-input" class="settings-number-input hidden" type="password">
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="claude-access-mode" class="settings-label">Claude</label>
+                        <div class="settings-control">
+                            <select id="claude-access-mode" class="config-input config-select-btn">
+                                <option value="cli">CLI</option>
+                                <option value="api">API</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="claude-api-key-input" class="settings-label">Claude API Key</label>
+                        <div class="settings-control">
+                            <input id="claude-api-key-input" class="settings-number-input hidden" type="password">
+                        </div>
+                    </div>
+                    <p class="settings-desc">API 模式分别使用 OpenAI / Gemini / Claude 官方接口；CLI 模式继续调用本机命令行。</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" type="button" onclick="closeAccessSettingsModal()">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- settings.json 编辑 -->
+    <div id="settings-json-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>settings.json</h3>
+                <button class="icon-btn" onclick="closeSettingsJsonModal()">×</button>
+            </div>
+            <p id="settings-json-path" class="consistency-summary">路径：</p>
+            <textarea id="settings-json-editor" class="outline-input" style="min-height: 320px; font-family: Consolas, 'Courier New', monospace;"></textarea>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn btn-primary" type="button" onclick="saveSettingsJsonFile()">保存</button>
+                <button class="btn btn-warning" type="button" onclick="restoreSettingsJsonFile()">复原上一次</button>
+                <button class="btn btn-danger" type="button" onclick="closeSettingsJsonModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- auth.json 编辑 -->
+    <div id="auth-json-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>auth.json</h3>
+                <button class="icon-btn" onclick="closeAuthJsonModal()">×</button>
+            </div>
+            <p id="auth-json-path" class="consistency-summary">路径：</p>
+            <textarea id="auth-json-editor" class="outline-input" style="min-height: 320px; font-family: Consolas, 'Courier New', monospace;"></textarea>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn btn-primary" type="button" onclick="saveAuthJsonFile()">保存</button>
+                <button class="btn btn-warning" type="button" onclick="restoreAuthJsonFile()">复原上一次</button>
+                <button class="btn btn-danger" type="button" onclick="closeAuthJsonModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 书架 -->
+    <div id="bookshelf-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>书架</h3>
+                <button class="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭书架弹窗" onclick="closeBookshelfModal()">×</button>
+            </div>
+            <p id="bookshelf-tip" class="consistency-summary">每本书会在独立文件夹中保存：大纲、参考、缓存、章节、草稿都会单独隔离。</p>
+            <div class="settings-row" style="margin-bottom: 10px;">
+                <label class="settings-label">新书书名</label>
+                <div class="settings-control">
+                    <input id="new-book-title-input" class="settings-number-input" type="text" placeholder="输入书名后创建">
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-bottom: 12px;">
+                <button class="btn btn-primary" type="button" onclick="createNewBook()">创建新书</button>
+                <button class="btn btn-warning" type="button" onclick="refreshBookshelf()">刷新</button>
+            </div>
+            <div id="bookshelf-list" class="bookshelf-list"></div>
+        </div>
+    </div>
+
+    <!-- 个人配置弹窗 -->
+    <div id="personal-config-modal" class="modal-overlay hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h3>个人配置</h3>
+                <button class="icon-btn" onclick="closePersonalConfigModal()">×</button>
+            </div>
+            <div class="settings-modal-scroll">
+                <div class="settings-section">
+                    <h4>连接信息</h4>
+                    <div class="settings-row">
+                        <label for="personal-model-modal-select" class="settings-label">当前模型</label>
+                        <div class="settings-control">
+                            <select id="personal-model-modal-select" class="config-input config-select-btn"></select>
+                        </div>
+                    </div>
+                    <details id="personal-model-list-details" class="personal-model-list-details">
+                        <summary>
+                            <span>模型ID列表</span>
+                            <span id="personal-model-list-summary" class="personal-model-list-summary">0 个</span>
+                        </summary>
+                        <div class="personal-model-list-body">
+                            <div class="settings-row">
+                                <label class="settings-label">Model ID</label>
+                                <div class="settings-control">
+                                    <div id="personal-model-inputs" class="personal-model-inputs"></div>
+                                </div>
+                            </div>
+                            <button id="personal-model-add-btn" class="btn btn-primary btn-sm" type="button">＋ 添加模型</button>
+                            <p class="settings-desc">电脑端长按模型输入框可排序；右键可打开菜单并设为置顶。首位模型为默认模型，调用失败时按从上到下自动切换。</p>
+                        </div>
+                    </details>
+                    <div class="settings-row">
+                        <label for="personal-base-url-input" class="settings-label">Base URL</label>
+                        <div class="settings-control">
+                            <input id="personal-base-url-input" class="settings-number-input" type="text">
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="personal-api-key-input" class="settings-label">API Key</label>
+                        <div class="settings-control">
+                            <input id="personal-api-key-input" class="settings-number-input" type="password">
+                        </div>
+                    </div>
+                    <p class="settings-desc">调用方式使用 OpenAI Chat Completions 流式接口，模型默认读取「生成引擎」中的个人模型ID。</p>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button id="personal-config-save-btn" class="btn btn-primary" type="button" onclick="savePersonalConfigFromModal()">保存并应用</button>
+                <button class="btn btn-danger" type="button" onclick="closePersonalConfigModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 豆包模型配置弹窗 -->
+    <div id="doubao-config-modal" class="modal-overlay hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h3>豆包</h3>
+                <button class="icon-btn" onclick="closeDoubaoConfigModal()">×</button>
+            </div>
+            <div class="settings-modal-scroll">
+                <div class="settings-section">
+                    <div class="settings-row">
+                        <label for="doubao-model-modal-select" class="settings-label">当前模型</label>
+                        <div class="settings-control">
+                            <select id="doubao-model-modal-select" class="config-input config-select-btn"></select>
+                        </div>
+                    </div>
+                    <details id="doubao-model-list-details" class="personal-model-list-details">
+                        <summary>
+                            <span>模型ID列表</span>
+                            <span id="doubao-model-list-summary" class="personal-model-list-summary">0 个</span>
+                        </summary>
+                        <div class="personal-model-list-body">
+                            <div class="settings-row">
+                                <label class="settings-label">Model ID</label>
+                                <div class="settings-control">
+                                    <div id="doubao-model-inputs" class="personal-model-inputs"></div>
+                                </div>
+                            </div>
+                            <button id="doubao-model-add-btn" class="btn btn-primary btn-sm" type="button">＋ 添加模型</button>
+                            <p class="settings-desc">支持增减模型 ID。首位模型为默认使用模型，失败时按从上到下自动切换。</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="doubao-config-save-btn" class="btn btn-primary" type="button" onclick="saveDoubaoConfigFromModal()">保存并应用</button>
+                <button class="btn btn-danger" type="button" onclick="closeDoubaoConfigModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局记忆变更预览弹窗 -->
+    <div id="memory-preview-modal" class="modal-overlay hidden">
+        <div class="modal-content memory-preview-content">
+            <div class="modal-header">
+                <h3>全局记忆更新预览</h3>
+                <button class="icon-btn close-modal-btn" onclick="closeMemoryPreviewModal()">×</button>
+            </div>
+            
+            <div class="memory-stat-bar">
+                <div class="stat-item stat-added">
+                    <span class="stat-count" id="mem-stat-added">0</span>
+                    <span class="stat-label">新增</span>
+                </div>
+                <div class="stat-item stat-replaced">
+                    <span class="stat-count" id="mem-stat-replaced">0</span>
+                    <span class="stat-label">变更</span>
+                </div>
+                <div class="stat-item stat-unchanged">
+                    <span class="stat-count" id="mem-stat-unchanged">0</span>
+                    <span class="stat-label">未变</span>
+                </div>
+            </div>
+
+            <div id="memory-change-list" class="memory-preview-list">
+                <!-- Javascript will populate this -->
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="closeMemoryPreviewModal()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 连贯性校验结果弹窗 -->
+    <div id="consistency-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>连贯性校验结果</h3>
+                <button class="icon-btn" onclick="closeConsistencyModal()">×</button>
+            </div>
+            <p id="consistency-summary" class="consistency-summary">检测到连贯性冲突，请按以下建议修复。</p>
+            <div id="consistency-conflict-list" class="consistency-conflict-list"></div>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn btn-primary" onclick="closeConsistencyModal()">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模型健康面板 -->
+    <div id="model-health-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>模型健康面板</h3>
+                <button class="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭模型健康面板弹窗" onclick="closeModelHealthModal()">×</button>
+            </div>
+            <p class="consistency-summary">最近 N 次调用统计：成功率、平均首字时间、平均总耗时。</p>
+            <div class="model-health-table-wrap">
+                <table class="model-health-table">
+                    <thead>
+                        <tr>
+                            <th>引擎</th>
+                            <th>模型</th>
+                            <th>成功率</th>
+                            <th>首字(ms)</th>
+                            <th>总耗时(ms)</th>
+                            <th>冷却</th>
+                        </tr>
+                    </thead>
+                    <tbody id="model-health-body">
+                        <tr><td colspan="6" class="health-empty">暂无数据</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn btn-primary" onclick="refreshModelHealthPanel()">刷新</button>
+                <button class="btn btn-danger" onclick="closeModelHealthModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 信息箱 -->
+    <div id="info-box-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>信息箱</h3>
+                <button class="icon-btn" onclick="closeInfoBoxModal()">×</button>
+            </div>
+            <p class="consistency-summary">仅收集异常信息；点击“复制”或右键可复制单条内容。</p>
+            <div id="info-box-list" class="info-box-list">
+                <div class="info-box-empty">暂无异常信息</div>
+            </div>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn btn-warning" type="button" onclick="clearInfoBoxItems()">清空</button>
+                <button class="btn btn-danger" type="button" onclick="closeInfoBoxModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 启动自检页 -->
+    <div id="self-check-modal" class="modal-overlay hidden">
+        <div class="modal-content consistency-modal-content">
+            <div class="modal-header">
+                <h3>环境自检</h3>
+                <button class="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭环境自检弹窗" onclick="closeSelfCheckModal()">×</button>
+            </div>
+            <div id="self-check-loading" class="hidden" style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div class="thinking-spinner" style="width: 18px; height: 18px; border-width: 2px;"></div>
+                <span class="status-text">检测中...</span>
+            </div>
+            <p id="self-check-summary" class="consistency-summary">正在检测...</p>
+            <div id="self-check-list" class="consistency-conflict-list"></div>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn btn-primary" onclick="runSelfCheck(false)">重新检测</button>
+                <button class="btn btn-danger" onclick="closeSelfCheckModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 生成大纲弹窗 -->
+    <div id="outline-modal" class="modal-overlay hidden">
+        <div class="modal-content outline-modal-content">
+            <div id="outline-loading-overlay" class="loading-overlay hidden">
+                <div class="spinner"></div>
+                <div class="loading-text">正在生成大纲...</div>
+            </div>
+            <div class="modal-header">
+                <h3>生成大纲</h3>
+                <button class="icon-btn settings-modal-header-icon-btn" type="button" aria-label="关闭大纲弹窗" onclick="closeOutlineModal()">×</button>
+            </div>
+
+            <div class="outline-modal-body">
+                <div class="outline-section">
+                    <h4>小说框架</h4>
+                    <label class="outline-label">总体流程 <span class="required-mark">*</span></label>
+                    <textarea id="outline-overall-flow" class="outline-input" placeholder="起始，大致经过，预期结果。"></textarea>
+                    <label class="outline-label">主要卖点</label>
+                    <textarea id="outline-selling-points" class="outline-input" placeholder="例如：金手指/外挂设定: [系统, 重生]"></textarea>
+                    <label class="outline-label">关键事件</label>
+                    <textarea id="outline-key-events" class="outline-input" placeholder="如：激励事件、一无所有时刻、高潮。"></textarea>
+                    <label class="outline-label">故事节奏</label>
+                    <textarea id="outline-story-pace" class="outline-input" placeholder="是慢热型还是快节奏爽文"></textarea>
+                </div>
+
+                <div class="outline-section">
+                    <h4>主要世界观</h4>
+                    <label class="outline-label">世界观描述 <span class="required-mark">*</span></label>
+                    <textarea id="outline-worldview" class="outline-input" placeholder="故事背景，势力分布，境界设定（武侠、玄幻）......"></textarea>
+                </div>
+
+                <div class="outline-section">
+                    <h4>核心人物设定</h4>
+                    <label class="outline-label">主角性格标签 <span class="required-mark">*</span></label>
+                    <textarea id="outline-protagonist-tags" class="outline-input" placeholder="主角性格标签"></textarea>
+                    <label class="outline-label">角色动机与欲望</label>
+                    <textarea id="outline-motivation" class="outline-input" placeholder="角色动机与欲望"></textarea>
+                    <label class="outline-label">人物关系图谱</label>
+                    <textarea id="outline-relations" class="outline-input" placeholder="包含家庭状况和主要关系人物，例如：大家族、边疆小镇"></textarea>
+                    <label class="outline-label">反派的描绘</label>
+                    <textarea id="outline-antagonist" class="outline-input" placeholder="反派的描绘"></textarea>
+                    <label class="outline-label">重要伏笔</label>
+                    <textarea id="outline-foreshadowing" class="outline-input" placeholder="例如：身世之谜"></textarea>
+                </div>
+
+                <div class="outline-section">
+                    <h4>输出控制参数</h4>
+                    <label class="outline-label">预期字数 <span class="required-mark">*</span></label>
+                    <input id="outline-target-words" class="outline-text-input" type="text" placeholder="50万/100万/200万......">
+                    <label class="outline-label">结局偏好 <span class="required-mark">*</span></label>
+                    <input id="outline-ending-pref" class="outline-text-input" type="text" placeholder="好结局、坏结局、开放式结局">
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button id="outline-generate-confirm-btn" class="btn btn-primary" onclick="submitOutlineGenerate()" disabled>生成大纲</button>
+                <button class="btn btn-danger" onclick="closeOutlineModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="personal-model-context-menu" class="context-menu hidden">
+        <button id="personal-model-menu-copy" type="button" class="context-menu-item">复制</button>
+        <button id="personal-model-menu-paste" type="button" class="context-menu-item">粘贴</button>
+        <button id="personal-model-menu-cut" type="button" class="context-menu-item">剪切</button>
+        <button id="personal-model-menu-pin-top" type="button" class="context-menu-item">设为置顶模型</button>
+    </div>
+    <div id="info-box-context-menu" class="context-menu hidden">
+        <button id="info-box-menu-copy" type="button" class="context-menu-item">复制</button>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/personal_model.js"></script>
+    <script src="/static/js/writing.js"></script>
+    <script src="/static/js/chapter.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

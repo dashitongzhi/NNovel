@@ -3,9 +3,9 @@ const path = require("path");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://127.0.0.1:5173";
 const FEATURE_FLAGS = ["CanvasOopRasterization", "UseSkiaRenderer"];
-const FORCE_HARDWARE = String(process.env.NNOVEL_FORCE_HARDWARE || "") === "1";
-const STRICT_HARDWARE = String(process.env.NNOVEL_STRICT_HARDWARE || "") === "1";
-const NO_SANDBOX = String(process.env.NNOVEL_NO_SANDBOX || "") === "1";
+const FORCE_HARDWARE = String(process.env.NNOVEL_FORCE_HARDWARE || "1") === "1";
+const STRICT_HARDWARE = String(process.env.NNOVEL_STRICT_HARDWARE || (FORCE_HARDWARE ? "1" : "0")) === "1";
+const NO_SANDBOX = String(process.env.NNOVEL_NO_SANDBOX || (STRICT_HARDWARE ? "1" : "0")) === "1";
 const IS_DEV = Boolean(process.env.VITE_DEV_SERVER_URL);
 const DEV_KEEPALIVE = String(process.env.NNOVEL_DEV_KEEPALIVE || "") === "1";
 const ANGLE_BACKEND = String(process.env.NNOVEL_ANGLE_BACKEND || "d3d11").trim() || "d3d11";
@@ -162,15 +162,7 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  console.log("[electron] force hardware:", FORCE_HARDWARE);
-  console.log("[electron] strict hardware:", STRICT_HARDWARE);
-  console.log("[electron] no sandbox:", NO_SANDBOX);
-  console.log("[electron] angle backend:", ANGLE_BACKEND);
-  console.log("[electron] gpu profile:", GPU_PROFILE);
-  console.log("[electron] disable-gpu switch:", app.commandLine.hasSwitch("disable-gpu"));
-  console.log("[electron] disable-gpu-compositing switch:", app.commandLine.hasSwitch("disable-gpu-compositing"));
-  console.log("[electron] disable-software-rasterizer switch:", app.commandLine.hasSwitch("disable-software-rasterizer"));
+async function initializeGpuState() {
   const gpuStatusEarly = app.getGPUFeatureStatus();
   console.log("[electron] GPU feature status (early):", gpuStatusEarly);
   setRendererGpuHints(gpuStatusEarly);
@@ -193,23 +185,40 @@ app.whenReady().then(() => {
     }).catch((err) => {
       console.error("[electron] GPU info (basic) failed:", err);
     });
+  }
 
-    // complete waits for GPU process to finish init (~320ms)
-    app.getGPUInfo("complete").then((info) => {
-      const aux = (info && typeof info === "object" && info.auxAttributes) || {};
-      console.log("[electron] GPU info (complete) — gl:", aux.glImplementationParts);
-      console.log("[electron] GPU info (complete) — renderer:", aux.glRenderer);
-      console.log("[electron] GPU info (complete) — skia:", aux.skiaBackendType);
-      console.log("[electron] GPU info (complete) — initTime:", aux.initializationTime, "ms");
-      console.log("[electron] GPU info (complete) — directComposition:", aux.overlayInfo && aux.overlayInfo.directComposition);
+  // Wait for GPU process to fully initialize before creating the renderer window.
+  try {
+    const info = await app.getGPUInfo("complete");
+    const aux = (info && typeof info === "object" && info.auxAttributes) || {};
+    console.log("[electron] GPU info (complete) — gl:", aux.glImplementationParts);
+    console.log("[electron] GPU info (complete) — renderer:", aux.glRenderer);
+    console.log("[electron] GPU info (complete) — skia:", aux.skiaBackendType);
+    console.log("[electron] GPU info (complete) — initTime:", aux.initializationTime, "ms");
+    console.log("[electron] GPU info (complete) — directComposition:", aux.overlayInfo && aux.overlayInfo.directComposition);
+  } catch (err) {
+    console.error("[electron] GPU info (complete) failed:", err);
+  }
 
-      // Re-check feature status AFTER GPU process is ready
-      const gpuStatusLate = app.getGPUFeatureStatus();
-      console.log("[electron] GPU feature status (after GPU init):", gpuStatusLate);
-      setRendererGpuHints(gpuStatusLate);
-    }).catch((err) => {
-      console.error("[electron] GPU info (complete) failed:", err);
-    });
+  const gpuStatusLate = app.getGPUFeatureStatus();
+  console.log("[electron] GPU feature status (after GPU init):", gpuStatusLate);
+  setRendererGpuHints(gpuStatusLate);
+}
+
+app.whenReady().then(async () => {
+  console.log("[electron] force hardware:", FORCE_HARDWARE);
+  console.log("[electron] strict hardware:", STRICT_HARDWARE);
+  console.log("[electron] no sandbox:", NO_SANDBOX);
+  console.log("[electron] angle backend:", ANGLE_BACKEND);
+  console.log("[electron] gpu profile:", GPU_PROFILE);
+  console.log("[electron] disable-gpu switch:", app.commandLine.hasSwitch("disable-gpu"));
+  console.log("[electron] disable-gpu-compositing switch:", app.commandLine.hasSwitch("disable-gpu-compositing"));
+  console.log("[electron] disable-software-rasterizer switch:", app.commandLine.hasSwitch("disable-software-rasterizer"));
+  await initializeGpuState();
+  if (FORCE_HARDWARE && STRICT_HARDWARE && rendererGpuHints.mode !== "hardware") {
+    console.error("[electron] strict hardware requested but renderer is still software; aborting launch.");
+    app.quit();
+    return;
   }
   createWindow();
   app.on("activate", () => {

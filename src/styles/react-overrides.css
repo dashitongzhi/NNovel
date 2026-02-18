@@ -276,6 +276,25 @@
   min-width: 86px;
 }
 
+.background-picker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.background-picker-add-btn {
+  min-width: 96px;
+}
+
+.background-picker-help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -776,6 +795,56 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+  contain: layout paint;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.settings-modal-content .settings-modal-scroll.is-scrolling,
+.settings-modal-content .settings-modal-scroll:hover,
+.settings-modal-content .settings-modal-scroll:active {
+  scrollbar-width: thin;
+}
+
+.settings-modal-content .settings-modal-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+.settings-modal-content .settings-modal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.settings-modal-content .settings-modal-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: rgba(112, 126, 152, 0);
+  opacity: 0;
+  transition: background-color 220ms ease, opacity 220ms ease;
+}
+
+.settings-modal-content .settings-modal-scroll.is-scrolling::-webkit-scrollbar-thumb,
+.settings-modal-content .settings-modal-scroll:hover::-webkit-scrollbar-thumb,
+.settings-modal-content .settings-modal-scroll:active::-webkit-scrollbar-thumb {
+  background-color: rgba(112, 126, 152, 0.52);
+  opacity: 1;
+}
+
+[data-theme="dark"] .settings-modal-content .settings-modal-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0);
+}
+
+[data-theme="dark"] .settings-modal-content .settings-modal-scroll.is-scrolling::-webkit-scrollbar-thumb,
+[data-theme="dark"] .settings-modal-content .settings-modal-scroll:hover::-webkit-scrollbar-thumb,
+[data-theme="dark"] .settings-modal-content .settings-modal-scroll:active::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0.46);
+  opacity: 1;
 }
 
 .chapter-item-card {
@@ -919,6 +988,19 @@ body {
 
 [data-theme="dark"] #config-panel .panel-section h3 {
   color: rgba(244, 248, 255, 0.96);
+}
+
+/* Keep sidebar dropdown stacks above action buttons in clone mode and normal mode. */
+#config-panel .panel-section {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+#config-panel .panel-actions {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
 }
 
 .settings-label {
@@ -1252,13 +1334,15 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   transform: translate3d(0, 0, 0);
   transform-style: preserve-3d;
   backface-visibility: hidden;
-  contain: layout paint style;
-  background: rgba(248, 251, 255, 0.46);
+  contain: layout style;
+  background: rgba(248, 251, 255, 0.74);
   border: 1px solid rgba(255, 255, 255, 0.56);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.62),
     inset 0 -1px 0 rgba(255, 255, 255, 0.18),
     0 18px 38px rgba(22, 38, 64, 0.2);
+  z-index: 9800 !important;
+  pointer-events: auto;
   will-change: transform, opacity;
 }
 
@@ -1270,16 +1354,26 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   border-radius: inherit;
   pointer-events: none;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.68), rgba(242, 247, 255, 0.54));
-  backdrop-filter: blur(34px) saturate(1.08) contrast(0.52) brightness(1.04);
-  -webkit-backdrop-filter: blur(34px) saturate(1.08) contrast(0.52) brightness(1.04);
+  backdrop-filter: blur(44px) saturate(1.08) contrast(0.42) brightness(1.04);
+  -webkit-backdrop-filter: blur(44px) saturate(1.08) contrast(0.42) brightness(1.04);
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
+}
+
+#app #config-panel .config-select-menu::after,
+#app #engine-picker-menu.engine-picker-menu::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: rgba(244, 248, 255, 0.38);
 }
 
 #app #config-panel .config-select-menu > *,
 #app #engine-picker-menu.engine-picker-menu > * {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 #app #config-panel .config-select-menu {
@@ -1298,7 +1392,7 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
 
 [data-theme="dark"] #app #config-panel .config-select-menu,
 [data-theme="dark"] #app #engine-picker-menu.engine-picker-menu {
-  background: rgba(25, 38, 57, 0.52);
+  background: rgba(25, 38, 57, 0.72);
   border-color: rgba(180, 210, 251, 0.34);
   box-shadow:
     inset 0 1px 0 rgba(206, 228, 255, 0.22),
@@ -1309,49 +1403,112 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
 [data-theme="dark"] #app #config-panel .config-select-menu::before,
 [data-theme="dark"] #app #engine-picker-menu.engine-picker-menu::before {
   background: linear-gradient(160deg, rgba(104, 136, 185, 0.5), rgba(31, 49, 76, 0.48));
-  backdrop-filter: blur(36px) saturate(1.1) contrast(0.5) brightness(1.03);
-  -webkit-backdrop-filter: blur(36px) saturate(1.1) contrast(0.5) brightness(1.03);
+  backdrop-filter: blur(46px) saturate(1.1) contrast(0.4) brightness(1.03);
+  -webkit-backdrop-filter: blur(46px) saturate(1.1) contrast(0.4) brightness(1.03);
 }
 
-/* GPU-friendly dropdown motion: transform + opacity only. */
+[data-theme="dark"] #app #config-panel .config-select-menu::after,
+[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu::after {
+  background: rgba(22, 34, 52, 0.44);
+}
+
+/* iOS26-like dropdown motion (GPU path: transform + opacity). */
 @keyframes ios-glass-dropdown-in {
   0% {
     opacity: 0;
-    transform: translate3d(0, -16px, 0) scale3d(0.94, 0.84, 1);
+    transform: translate3d(0, -8px, 0) scale3d(0.965, 0.9, 1);
+    border-radius: 36px;
   }
-  62% {
+  14% {
+    opacity: 0.26;
+    transform: translate3d(0, -6px, 0) scale3d(0.972, 0.92, 1);
+    border-radius: 34px;
+  }
+  30% {
+    opacity: 0.56;
+    transform: translate3d(0, -4px, 0) scale3d(0.982, 0.95, 1);
+    border-radius: 31px;
+  }
+  48% {
+    opacity: 0.82;
+    transform: translate3d(0, -2px, 0) scale3d(0.992, 0.98, 1);
+    border-radius: 28px;
+  }
+  66% {
+    opacity: 0.96;
+    transform: translate3d(0, -1px, 0) scale3d(0.998, 0.995, 1);
+    border-radius: 26px;
+  }
+  82% {
     opacity: 1;
-    transform: translate3d(0, 1px, 0) scale3d(1.01, 1.005, 1);
+    transform: translate3d(0, 0.3px, 0) scale3d(1.002, 1.002, 1);
+    border-radius: 24px;
   }
   100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+    border-radius: 24px;
   }
 }
 
 @keyframes ios-glass-dropdown-in-center {
   0% {
     opacity: 0;
-    transform: translate3d(-50%, -16px, 0) scale3d(0.94, 0.84, 1);
+    transform: translate3d(-50%, -8px, 0) scale3d(0.965, 0.9, 1);
+    border-radius: 36px;
   }
-  62% {
+  14% {
+    opacity: 0.26;
+    transform: translate3d(-50%, -6px, 0) scale3d(0.972, 0.92, 1);
+    border-radius: 34px;
+  }
+  30% {
+    opacity: 0.56;
+    transform: translate3d(-50%, -4px, 0) scale3d(0.982, 0.95, 1);
+    border-radius: 31px;
+  }
+  48% {
+    opacity: 0.82;
+    transform: translate3d(-50%, -2px, 0) scale3d(0.992, 0.98, 1);
+    border-radius: 28px;
+  }
+  66% {
+    opacity: 0.96;
+    transform: translate3d(-50%, -1px, 0) scale3d(0.998, 0.995, 1);
+    border-radius: 26px;
+  }
+  82% {
     opacity: 1;
-    transform: translate3d(-50%, 1px, 0) scale3d(1.01, 1.005, 1);
+    transform: translate3d(-50%, 0.3px, 0) scale3d(1.002, 1.002, 1);
+    border-radius: 24px;
   }
   100% {
     opacity: 1;
     transform: translate3d(-50%, 0, 0) scale3d(1, 1, 1);
+    border-radius: 24px;
   }
 }
 
 @keyframes ios-glass-dropdown-surface {
   0% {
+    opacity: 0.7;
+    transform: translate3d(0, -6px, 0) scale3d(0.96, 0.92, 1);
+  }
+  26% {
     opacity: 0.82;
-    transform: translate3d(0, -8px, 0) scale3d(0.95, 0.9, 1);
+    transform: translate3d(0, -3px, 0) scale3d(0.985, 0.965, 1);
+  }
+  48% {
+    opacity: 0.92;
+    transform: translate3d(0, -1.5px, 0) scale3d(0.995, 0.988, 1);
   }
   68% {
     opacity: 0.98;
-    transform: translate3d(0, 1px, 0) scale3d(1.01, 1.005, 1);
+    transform: translate3d(0, -0.6px, 0) scale3d(1.002, 1.002, 1);
+  }
+  82% {
+    opacity: 0.98;
+    transform: translate3d(0, 0.4px, 0) scale3d(1.002, 1.002, 1);
   }
   100% {
     opacity: 1;
@@ -1359,15 +1516,30 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   }
 }
 
+@keyframes ios-glass-dropdown-overlay-in {
+  0% {
+    opacity: 0.24;
+  }
+  38% {
+    opacity: 0.42;
+  }
+  68% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 #app #config-panel .config-select-menu:not(.hidden) {
-  animation: ios-glass-dropdown-in 250ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  animation: ios-glass-dropdown-in 190ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
 #app #engine-picker-menu.engine-picker-menu:not(.hidden) {
-  animation: ios-glass-dropdown-in-center 260ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  animation: ios-glass-dropdown-in-center 198ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -1375,7 +1547,28 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
 
 #app #config-panel .config-select-menu:not(.hidden)::before,
 #app #engine-picker-menu.engine-picker-menu:not(.hidden)::before {
-  animation: ios-glass-dropdown-surface 260ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+  animation: ios-glass-dropdown-surface 208ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
+}
+
+#app #config-panel .config-select-menu:not(.hidden)::after,
+#app #engine-picker-menu.engine-picker-menu:not(.hidden)::after {
+  animation: ios-glass-dropdown-overlay-in 208ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
+}
+
+@keyframes ios-glass-dropdown-content-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+#app #config-panel .config-select-menu:not(.hidden) > *,
+#app #engine-picker-menu.engine-picker-menu:not(.hidden) > * {
+  animation: ios-glass-dropdown-content-in 116ms cubic-bezier(0.22, 0.78, 0.2, 1) 28ms both;
 }
 
 #app #config-panel .config-select-menu.hidden,
@@ -1387,7 +1580,7 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
 }
 #app #config-panel .config-select-option,
 #app #engine-picker-menu.engine-picker-menu button {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.52);
   border-color: rgba(255, 255, 255, 0.34);
 }
 
@@ -1399,7 +1592,7 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
 
 [data-theme="dark"] #app #config-panel .config-select-option,
 [data-theme="dark"] #app #engine-picker-menu.engine-picker-menu button {
-  background: rgba(184, 213, 255, 0.16);
+  background: rgba(184, 213, 255, 0.26);
   border-color: rgba(160, 191, 236, 0.32);
 }
 
@@ -1999,12 +2192,12 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #split-chapter-btn.draft-split-
 
 /* When a dropdown is open, raise it above sibling controls */
 .config-select-open {
-  z-index: 2610;
+  z-index: 9800;
 }
 
 .engine-picker-menu,
 .config-select-menu {
-  z-index: 4600 !important;
+  z-index: 9801 !important;
 }
 
 /* Model picker layout: dropdown opens downward and covers below content. */
