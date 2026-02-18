@@ -1,4 +1,4 @@
-# NNovel React (Liquid Glass UI)
+# NNovel
 
 - 中文文档：[`README.zh-CN.md`](README.zh-CN.md)
 - English Documentation: [`README.en.md`](README.en.md)
