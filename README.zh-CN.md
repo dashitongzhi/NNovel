@@ -1,7 +1,4 @@
-# NNovel React (Liquid Glass UI)
-
-> Paths in this document are relative to the project root: `react_test/`.
-> 本文档中所有路径均以项目根目录 `react_test/` 为基准。
+# NNovel React
 
 ---
 
