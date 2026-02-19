@@ -36,7 +36,7 @@ export function DraftPanel(props: DraftPanelProps) {
           <div className="draft-header-actions">
             <button
               id="polish-draft-btn"
-              className={`btn btn-sm btn-primary writer-icon-btn draft-action-btn ${props.polishLoading ? "loading" : ""}`}
+              className={`icon-btn toolbar-icon-btn glass-btn writer-icon-btn draft-action-btn ${props.polishLoading ? "loading" : ""}`}
               onClick={props.onPolish}
               type="button"
               disabled={actionDisabled}
@@ -51,7 +51,7 @@ export function DraftPanel(props: DraftPanelProps) {
             </button>
             <button
               id="split-chapter-btn"
-              className={`btn btn-sm btn-warning writer-icon-btn draft-action-btn draft-split-btn ${splitBusy ? "loading is-busy" : ""}`}
+              className={`icon-btn toolbar-icon-btn glass-btn writer-icon-btn draft-action-btn draft-split-btn ${splitBusy ? "loading is-busy" : ""}`}
               onClick={props.onSplitChapter}
               type="button"
               disabled={actionDisabled}
@@ -98,4 +98,5 @@ export function DraftPanel(props: DraftPanelProps) {
     </div>
   );
 }
+
 

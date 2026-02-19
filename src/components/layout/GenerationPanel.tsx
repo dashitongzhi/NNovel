@@ -84,7 +84,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
         <div className="toolbar">
           <button
             id="pause-writing-btn"
-            className={`btn btn-warning btn-sm writer-icon-btn ${props.isWriting || props.hasTask ? "" : "hidden"}`}
+            className={`icon-btn toolbar-icon-btn glass-btn writer-icon-btn ${props.isWriting || props.hasTask ? "" : "hidden"}`}
             type="button"
             onMouseDown={(e) => triggerByPress(e, props.onPauseResume)}
             onClick={(e) => triggerByClickFallback(e, props.onPauseResume)}
@@ -97,7 +97,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
           </button>
           <button
             id="start-writing-btn"
-            className={`btn btn-sm writer-icon-btn ${props.isWriting ? "btn-danger" : "btn-success"}`}
+            className={`icon-btn toolbar-icon-btn glass-btn writer-icon-btn ${props.isWriting ? "is-stop" : "is-start"}`}
             type="button"
             onMouseDown={(e) => triggerByPress(e, props.onStartStop)}
             onClick={(e) => triggerByClickFallback(e, props.onStartStop)}
@@ -110,7 +110,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
           </button>
           <button
             id="skip-anim-btn"
-            className={`btn btn-sm btn-primary writer-icon-btn ${props.skipVisible ? "" : "hidden"}`}
+            className={`icon-btn toolbar-icon-btn glass-btn writer-icon-btn ${props.skipVisible ? "" : "hidden"}`}
             onMouseDown={(e) => triggerByPress(e, props.onSkip)}
             onClick={(e) => triggerByClickFallback(e, props.onSkip)}
             type="button"
@@ -121,7 +121,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
           </button>
           <button
             id="auto-scroll-btn"
-            className={`btn btn-sm btn-primary writer-icon-btn ${props.autoScroll ? "lock-on" : "lock-off"}`}
+            className={`icon-btn toolbar-icon-btn glass-btn writer-icon-btn ${props.autoScroll ? "lock-on" : "lock-off"}`}
             onMouseDown={(e) => triggerByPress(e, props.onToggleAutoScroll)}
             onClick={(e) => triggerByClickFallback(e, props.onToggleAutoScroll)}
             type="button"
@@ -173,3 +173,4 @@ export function GenerationPanel(props: GenerationPanelProps) {
     </LiquidGlassFrame>
   );
 }
+
