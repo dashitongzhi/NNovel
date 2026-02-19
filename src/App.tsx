@@ -557,6 +557,7 @@ function App() {
   const [outlinePaused, setOutlinePaused] = useState(false);
   const [outlineForm, setOutlineForm] = useState<OutlineFormState>(EMPTY_OUTLINE_FORM);
   const [outlineInlineNotice, setOutlineInlineNotice] = useState("");
+  const [outlineInvalidField, setOutlineInvalidField] = useState<keyof OutlineFormState | null>(null);
   const outlineAbortRef = useRef<AbortController | null>(null);
 
   const [modelHealthOpen, setModelHealthOpen] = useState(false);
@@ -959,6 +960,7 @@ function App() {
   useEffect(() => {
     if (!outlineOpen) return;
     setOutlineInlineNotice("");
+    setOutlineInvalidField(null);
     window.setTimeout(() => {
       const first = document.getElementById("outline-overall-flow") as HTMLTextAreaElement | null;
       first?.focus();
@@ -1916,6 +1918,7 @@ function App() {
     setOutlineGenerating(false);
     setOutlinePaused(false);
     setOutlineInlineNotice("");
+    setOutlineInvalidField(null);
     setOutlineOpen(false);
   };
 
@@ -1933,6 +1936,7 @@ function App() {
       const firstMissing = OUTLINE_REQUIRED_FIELDS.find((key) => !String(outlineForm[key] || "").trim());
       const fieldLabel = firstMissing ? (OUTLINE_REQUIRED_LABELS[firstMissing] || "必填项") : "必填项";
       setOutlineInlineNotice(`请先填写「${fieldLabel}」后再生成大纲`);
+      setOutlineInvalidField(firstMissing || null);
       if (firstMissing) {
         const inputId = OUTLINE_REQUIRED_INPUT_IDS[firstMissing];
         if (inputId) {
@@ -1948,6 +1952,7 @@ function App() {
     const controller = new AbortController();
     outlineAbortRef.current = controller;
     setOutlineInlineNotice("");
+    setOutlineInvalidField(null);
     setOutlinePaused(false);
     setOutlineGenerating(true);
 
@@ -3129,7 +3134,7 @@ function App() {
             <div className="outline-section">
               <h4>小说框架</h4>
               <label className="outline-label">总体流程 <span className="required-mark">*</span></label>
-              <textarea id="outline-overall-flow" className="outline-input" placeholder="起始，大致经过，预期结果。" value={outlineForm.overall_flow} onChange={(e) => setOutlineForm((s) => ({ ...s, overall_flow: e.target.value }))} />
+              <textarea id="outline-overall-flow" className={`outline-input${outlineInvalidField === "overall_flow" ? " outline-input-invalid" : ""}`} placeholder="起始，大致经过，预期结果。" value={outlineForm.overall_flow} onChange={(e) => { const value = e.target.value; setOutlineForm((s) => ({ ...s, overall_flow: value })); if (outlineInvalidField === "overall_flow" && value.trim()) setOutlineInvalidField(null); }} />
               <label className="outline-label">主要卖点</label>
               <textarea id="outline-selling-points" className="outline-input" placeholder="例如：金手指/外挂设定: [系统, 重生]" value={outlineForm.selling_points} onChange={(e) => setOutlineForm((s) => ({ ...s, selling_points: e.target.value }))} />
               <label className="outline-label">关键事件</label>
@@ -3140,12 +3145,12 @@ function App() {
             <div className="outline-section">
               <h4>主要世界观</h4>
               <label className="outline-label">世界观描述 <span className="required-mark">*</span></label>
-              <textarea id="outline-worldview" className="outline-input" placeholder="故事背景，势力分布，境界设定（武侠、玄幻）......" value={outlineForm.worldview} onChange={(e) => setOutlineForm((s) => ({ ...s, worldview: e.target.value }))} />
+              <textarea id="outline-worldview" className={`outline-input${outlineInvalidField === "worldview" ? " outline-input-invalid" : ""}`} placeholder="故事背景，势力分布，境界设定（武侠、玄幻）......" value={outlineForm.worldview} onChange={(e) => { const value = e.target.value; setOutlineForm((s) => ({ ...s, worldview: value })); if (outlineInvalidField === "worldview" && value.trim()) setOutlineInvalidField(null); }} />
             </div>
             <div className="outline-section">
               <h4>核心人物设定</h4>
               <label className="outline-label">主角性格标签 <span className="required-mark">*</span></label>
-              <textarea id="outline-protagonist-tags" className="outline-input" placeholder="主角性格标签" value={outlineForm.protagonist_tags} onChange={(e) => setOutlineForm((s) => ({ ...s, protagonist_tags: e.target.value }))} />
+              <textarea id="outline-protagonist-tags" className={`outline-input${outlineInvalidField === "protagonist_tags" ? " outline-input-invalid" : ""}`} placeholder="主角性格标签" value={outlineForm.protagonist_tags} onChange={(e) => { const value = e.target.value; setOutlineForm((s) => ({ ...s, protagonist_tags: value })); if (outlineInvalidField === "protagonist_tags" && value.trim()) setOutlineInvalidField(null); }} />
               <label className="outline-label">角色动机与欲望</label>
               <textarea id="outline-motivation" className="outline-input" placeholder="角色动机与欲望" value={outlineForm.motivation} onChange={(e) => setOutlineForm((s) => ({ ...s, motivation: e.target.value }))} />
               <label className="outline-label">人物关系图谱</label>
@@ -3158,9 +3163,9 @@ function App() {
             <div className="outline-section">
               <h4>输出控制参数</h4>
               <label className="outline-label">预期字数 <span className="required-mark">*</span></label>
-              <input id="outline-target-words" className="outline-text-input" placeholder="50万/100万/200万......" value={outlineForm.target_words} onChange={(e) => setOutlineForm((s) => ({ ...s, target_words: e.target.value }))} />
+              <input id="outline-target-words" className={`outline-text-input${outlineInvalidField === "target_words" ? " outline-input-invalid" : ""}`} placeholder="50万/100万/200万......" value={outlineForm.target_words} onChange={(e) => { const value = e.target.value; setOutlineForm((s) => ({ ...s, target_words: value })); if (outlineInvalidField === "target_words" && value.trim()) setOutlineInvalidField(null); }} />
               <label className="outline-label">结局偏好 <span className="required-mark">*</span></label>
-              <input id="outline-ending-pref" className="outline-text-input" placeholder="好结局、坏结局、开放式结局" value={outlineForm.ending_pref} onChange={(e) => setOutlineForm((s) => ({ ...s, ending_pref: e.target.value }))} />
+              <input id="outline-ending-pref" className={`outline-text-input${outlineInvalidField === "ending_pref" ? " outline-input-invalid" : ""}`} placeholder="好结局、坏结局、开放式结局" value={outlineForm.ending_pref} onChange={(e) => { const value = e.target.value; setOutlineForm((s) => ({ ...s, ending_pref: value })); if (outlineInvalidField === "ending_pref" && value.trim()) setOutlineInvalidField(null); }} />
             </div>
           </div>
           {outlineInlineNotice ? (

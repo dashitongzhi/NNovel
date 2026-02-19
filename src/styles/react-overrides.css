@@ -1980,6 +1980,18 @@ textarea:focus,
   box-shadow: 0 0 0 3px rgba(83, 152, 255, 0.18), 0 10px 24px rgba(39, 94, 173, 0.16);
 }
 
+.outline-input-invalid,
+.outline-text-input.outline-input-invalid {
+  border-color: rgba(240, 78, 96, 0.88) !important;
+  box-shadow: 0 0 0 3px rgba(240, 78, 96, 0.24), 0 12px 26px rgba(161, 39, 53, 0.2) !important;
+}
+
+[data-theme="dark"] .outline-input-invalid,
+[data-theme="dark"] .outline-text-input.outline-input-invalid {
+  border-color: rgba(255, 118, 132, 0.92) !important;
+  box-shadow: 0 0 0 3px rgba(255, 95, 116, 0.28), 0 14px 28px rgba(103, 24, 36, 0.44) !important;
+}
+
 .toolbar-status-chip,
 .badge {
   border: 1px solid rgba(157, 178, 215, 0.34);
