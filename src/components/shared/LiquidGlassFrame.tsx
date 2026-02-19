@@ -13,6 +13,7 @@ interface LiquidGlassFrameProps {
   cornerRadius?: number;
   overLight?: boolean;
   dynamic?: boolean;
+  staticOnly?: boolean;
   interactive?: boolean;
 }
 
@@ -53,6 +54,7 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
     cornerRadius,
     overLight = false,
     dynamic = true,
+    staticOnly = false,
     interactive = false,
   } = props;
   const liquidProfile = useUiStore((state) => state.liquidProfile);
@@ -79,7 +81,7 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
 
   useEffect(() => {
     setRuntimeFailed(false);
-  }, [id, className, strictCloneMode, liquidProfile, dynamic, interactive]);
+  }, [id, className, strictCloneMode, liquidProfile, dynamic, staticOnly, interactive]);
 
   useEffect(() => {
     const el = frameRef.current;
@@ -116,7 +118,7 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
   // to avoid SVG filter + displacement cost.
   // In strict clone mode, card shells are also forced static to avoid white flicker
   // when mouse moves near sidebar/scrollbar hot zones.
-  const softwareStaticSurface = forceStaticByRuntime || freezeCloneCardMotion;
+  const softwareStaticSurface = staticOnly || forceStaticByRuntime || freezeCloneCardMotion;
   const freezeMotion = softwareStaticSurface || !dynamic;
   const useLiquidRuntime = !softwareStaticSurface && runtimeSafe && !runtimeFailed && !hiddenClass;
 
@@ -202,3 +204,5 @@ export function LiquidGlassFrame(props: LiquidGlassFrameProps) {
     </div>
   );
 }
+
+

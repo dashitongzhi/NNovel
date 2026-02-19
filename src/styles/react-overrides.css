@@ -433,10 +433,40 @@
 .toolbar-group.right {
   flex-wrap: nowrap !important;
   overflow: visible !important;
+  isolation: isolate;
+}
+
+#toolbar-container .toolbar-group.right .icon-btn,
+#toolbar-container .toolbar-group.right .engine-picker-btn {
+  transition-property: transform, background-color, border-color, box-shadow, color, opacity;
 }
 
 .toolbar-group.right .toolbar-icon-btn {
   flex: 0 0 auto;
+}
+
+.toolbar-group.right .toolbar-item-isolate {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  pointer-events: auto;
+}
+
+.toolbar-group.right .toolbar-item-isolate-engine,
+.toolbar-group.right .toolbar-item-isolate-engine .engine-picker {
+  display: inline-flex;
+  align-items: center;
+}
+
+.toolbar-group.right .toolbar-item-isolate > .toolbar-icon-btn,
+.toolbar-group.right .toolbar-item-isolate .engine-picker-btn {
+  will-change: transform;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .icon-btn:disabled,
@@ -2739,9 +2769,4 @@ html.ui-scrolling #app .sidebar {
 html[data-theme="dark"].ui-scrolling #app .sidebar {
   scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
 }
-
-
-
-
-
 

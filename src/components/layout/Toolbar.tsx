@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ENGINE_LABELS } from "@/config/defaults";
 import type { AppConfig, StartupStatus } from "@/types/domain";
 import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
@@ -185,12 +185,18 @@ export function Toolbar(props: ToolbarProps) {
     }
     : undefined;
 
+  const ToolbarIsolate = (p: { children: ReactNode; className?: string }) => {
+    const className = p.className ? `toolbar-item-isolate ${p.className}` : "toolbar-item-isolate";
+    return <span className={className}>{p.children}</span>;
+  };
+
   return (
     <section id="extra-settings">
       <LiquidGlassFrame
         id="toolbar-container"
         className="section-header top-toolbar-row liquid-glass-toolbar-shell"
         dynamic={props.dynamicEffectsEnabled}
+        staticOnly
         style={{
           padding: "10px 16px",
           display: "flex",
@@ -214,36 +220,40 @@ export function Toolbar(props: ToolbarProps) {
         </div>
 
         <div className="toolbar-group right" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {IconBtn({ id: "outline-generate-btn", title: "调用当前模型生成大纲", icon: ICONS.outline, onClick: props.onOpenOutline })}
-          <div className="engine-picker" ref={enginePickerRef}>
-            <button
-              id="engine-picker-btn"
-              className="engine-picker-btn glass-btn"
-              type="button"
-              title="切换模型供应商"
-              disabled={interactionsLocked}
-              onClick={() => {
-                if (!interactionsLocked) setEngineMenuOpen((v) => !v);
-              }}
-            >
-              <span aria-hidden="true" style={{ marginRight: 6, lineHeight: 1 }}>
-                🔲
-              </span>
-              <span>模型: {ENGINE_LABELS[engineMode] || "ChatGPT"}</span>
-            </button>
-          </div>
-          {IconBtn({ id: "self-check-btn", title: "环境自检", icon: ICONS.selfCheck, onClick: props.onOpenSelfCheck })}
-          {IconBtn({ id: "new-book-btn", title: "新建书籍", icon: ICONS.newBook, onClick: props.onCreateBookQuick })}
-          {IconBtn({ id: "bookshelf-btn", title: "打开书架", icon: ICONS.bookshelf, onClick: props.onOpenBookshelf })}
-          {IconBtn({ title: "章节管理", icon: ICONS.chapters, onClick: props.onOpenChapters })}
-          {IconBtn({ title: "模型健康面板", icon: ICONS.health, onClick: props.onOpenModelHealth })}
-          {IconBtn({
-            title: props.hasInfoItems ? "打开信息箱（有信息）" : "打开信息箱（无信息）",
-            icon: infoIcon,
-            onClick: props.onOpenInfoBox,
-          })}
-          {IconBtn({ title: "查看废弃稿件", icon: ICONS.discarded, active: props.discardedVisible, onClick: props.onToggleDiscarded })}
-          {IconBtn({ title: "系统设置", icon: ICONS.settings, onClick: props.onOpenSettings })}
+          <ToolbarIsolate>{IconBtn({ id: "outline-generate-btn", title: "调用当前模型生成大纲", icon: ICONS.outline, onClick: props.onOpenOutline })}</ToolbarIsolate>
+          <ToolbarIsolate className="toolbar-item-isolate-engine">
+            <div className="engine-picker" ref={enginePickerRef}>
+              <button
+                id="engine-picker-btn"
+                className="engine-picker-btn glass-btn"
+                type="button"
+                title="切换模型供应商"
+                disabled={interactionsLocked}
+                onClick={() => {
+                  if (!interactionsLocked) setEngineMenuOpen((v) => !v);
+                }}
+              >
+                <span aria-hidden="true" style={{ marginRight: 6, lineHeight: 1 }}>
+                  🔲
+                </span>
+                <span>模型: {ENGINE_LABELS[engineMode] || "ChatGPT"}</span>
+              </button>
+            </div>
+          </ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ id: "self-check-btn", title: "环境自检", icon: ICONS.selfCheck, onClick: props.onOpenSelfCheck })}</ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ id: "new-book-btn", title: "新建书籍", icon: ICONS.newBook, onClick: props.onCreateBookQuick })}</ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ id: "bookshelf-btn", title: "打开书架", icon: ICONS.bookshelf, onClick: props.onOpenBookshelf })}</ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ title: "章节管理", icon: ICONS.chapters, onClick: props.onOpenChapters })}</ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ title: "模型健康面板", icon: ICONS.health, onClick: props.onOpenModelHealth })}</ToolbarIsolate>
+          <ToolbarIsolate>
+            {IconBtn({
+              title: props.hasInfoItems ? "打开信息箱（有信息）" : "打开信息箱（无信息）",
+              icon: infoIcon,
+              onClick: props.onOpenInfoBox,
+            })}
+          </ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ title: "查看废弃稿件", icon: ICONS.discarded, active: props.discardedVisible, onClick: props.onToggleDiscarded })}</ToolbarIsolate>
+          <ToolbarIsolate>{IconBtn({ title: "系统设置", icon: ICONS.settings, onClick: props.onOpenSettings })}</ToolbarIsolate>
         </div>
       </LiquidGlassFrame>
 
@@ -274,3 +284,6 @@ export function Toolbar(props: ToolbarProps) {
     </section>
   );
 }
+
+
+
