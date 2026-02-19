@@ -1,6 +1,6 @@
 :root {
-  --layer-z-dropdown: 9800;
-  --layer-z-context: 9850;
+  --layer-z-dropdown: 9920;
+  --layer-z-context: 9930;
   --layer-z-modal: 9900;
   --layer-z-toast: 9950;
 }
@@ -1597,7 +1597,7 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
     inset 0 1px 0 rgba(255, 255, 255, 0.62),
     inset 0 -1px 0 rgba(255, 255, 255, 0.18),
     0 18px 38px rgba(22, 38, 64, 0.2);
-  z-index: 9800 !important;
+  z-index: var(--layer-z-dropdown) !important;
   pointer-events: auto;
   will-change: transform, opacity;
 }
@@ -2475,12 +2475,12 @@ body.app-ui-clone-mode .context-menu {
 
 /* When a dropdown is open, raise it above sibling controls */
 .config-select-open {
-  z-index: 9800;
+  z-index: var(--layer-z-dropdown);
 }
 
 .engine-picker-menu,
 .config-select-menu {
-  z-index: 9801 !important;
+  z-index: var(--layer-z-dropdown) !important;
 }
 
 /* Model picker layout: dropdown opens downward and covers below content. */
