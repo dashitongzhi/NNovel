@@ -242,6 +242,12 @@ function formatFontSize(value: number): string {
   return Number.isInteger(rounded) ? `${rounded.toFixed(0)}px` : `${rounded.toFixed(1)}px`;
 }
 
+function formatTypewriterSpeed(value: number): string {
+  const safe = Math.max(10, Math.min(80, Number(value) || 30));
+  const rounded = Math.round(safe * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded.toFixed(0)}ms/字` : `${rounded.toFixed(1)}ms/字`;
+}
+
 function readFontPreset(): FontPreset {
   const raw = String(localStorage.getItem(FONT_PRESET_KEY) || "default").trim().toLowerCase();
   if (raw in FONT_PRESETS) return raw as FontPreset;
@@ -2366,15 +2372,15 @@ function App() {
                     type="range"
                     min={10}
                     max={80}
-                    step={1}
+                    step="any"
                     value={typewriterSpeedValue}
-                    onChange={(e) => generation.setTypewriterSpeed(Math.max(10, Math.min(80, Math.round(Number(e.target.value || 30)))))}
+                    onChange={(e) => generation.setTypewriterSpeed(Math.max(10, Math.min(80, Number(e.target.value || 30))))}
                     onPointerDown={() => setTypewriterRangeSliding(true)}
                     onPointerUp={() => setTypewriterRangeSliding(false)}
                     onPointerCancel={() => setTypewriterRangeSliding(false)}
                     onBlur={() => setTypewriterRangeSliding(false)}
                   />
-                  <span id="typewriter-speed-value" className="settings-value range-value">{typewriterSpeedValue}ms/字</span>
+                  <span id="typewriter-speed-value" className="settings-value range-value">{formatTypewriterSpeed(typewriterSpeedValue)}</span>
                 </div>
               </div>
               <label className="settings-toggle">

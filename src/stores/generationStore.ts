@@ -171,7 +171,7 @@ function readTypewriterEnabled(): boolean {
 function readTypewriterSpeed(): number {
   const raw = Number(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "30");
   if (!Number.isFinite(raw) || raw <= 0) return 30;
-  return Math.min(120, Math.max(10, Math.round(raw)));
+  return Math.min(120, Math.max(10, raw));
 }
 
 const defaultDurations = (): StageDurations => ({
@@ -966,7 +966,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   setTypewriterSpeed: (speed) => {
-    const next = Math.min(120, Math.max(10, Math.round(speed)));
+    const next = Math.min(120, Math.max(10, Number(speed) || 30));
     localStorage.setItem(TYPEWRITER_SPEED_KEY, String(next));
     set({ typewriterSpeed: next });
   },

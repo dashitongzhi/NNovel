@@ -31,7 +31,7 @@ const WRITER_BUTTON_ICONS = {
   stop: "🛑",
   pause: "⏸️",
   resume: "▶️",
-  skip: '<svg class="btn-icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 4a.7.7 0 0 1 1.1-.57L8 6.17V4.7a.7.7 0 0 1 1.1-.57l3.8 2.53a.7.7 0 0 1 0 1.16L9.1 10.35A.7.7 0 0 1 8 9.78V8.3l-3.9 2.74A.7.7 0 0 1 3 10.47z"/></svg>',
+  skip: "⏭️",
 } as const;
 
 function statusClass(stage: GenerationTaskState): string {
@@ -117,7 +117,7 @@ export function GenerationPanel(props: GenerationPanelProps) {
             title="跳过动画"
             aria-label="跳过动画"
           >
-            <span className="btn-icon-text" aria-hidden="true" dangerouslySetInnerHTML={{ __html: WRITER_BUTTON_ICONS.skip }} />
+            <span className="btn-icon-text" aria-hidden="true">{WRITER_BUTTON_ICONS.skip}</span>
           </button>
           <button
             id="auto-scroll-btn"
