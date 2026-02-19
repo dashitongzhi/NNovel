@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { ENGINE_LABELS } from "@/config/defaults";
 import type { AppConfig, StartupStatus } from "@/types/domain";
 import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
+import { LayerPortal } from "@/components/shared/LayerPortal";
 
 interface ToolbarProps {
   sidebarCollapsed: boolean;
@@ -59,6 +60,12 @@ function modeDefaultModelFromConfig(config: AppConfig, mode: AppConfig["engine_m
   return String(config.codex_model || "-");
 }
 
+interface EngineMenuLayout {
+  top: number;
+  left: number;
+  width: number;
+}
+
 export function Toolbar(props: ToolbarProps) {
   const ICONS = {
     sidebar: "☰",
@@ -86,13 +93,47 @@ export function Toolbar(props: ToolbarProps) {
   const [engineMenuOpen, setEngineMenuOpen] = useState(false);
   const visibleEngineMenuOpen = engineMenuOpen && !interactionsLocked;
   const enginePickerRef = useRef<HTMLDivElement | null>(null);
+  const engineMenuRef = useRef<HTMLDivElement | null>(null);
+  const [engineMenuLayout, setEngineMenuLayout] = useState<EngineMenuLayout | null>(null);
+
+  const syncEngineMenuLayout = useCallback(() => {
+    if (!visibleEngineMenuOpen) return;
+    const button = enginePickerRef.current?.querySelector("#engine-picker-btn") as HTMLButtonElement | null;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const width = Math.max(142, Math.min(178, Math.round(rect.width)));
+    const viewportPad = 12;
+    const half = width / 2;
+    let left = rect.left + rect.width / 2;
+    left = Math.max(viewportPad + half, Math.min(left, window.innerWidth - viewportPad - half));
+    const top = Math.round(rect.bottom + 6);
+    setEngineMenuLayout({ top, left, width });
+  }, [visibleEngineMenuOpen]);
+
+  useLayoutEffect(() => {
+    if (!visibleEngineMenuOpen) {
+      setEngineMenuLayout(null);
+      return;
+    }
+    const update = () => syncEngineMenuLayout();
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [syncEngineMenuLayout, visibleEngineMenuOpen]);
 
   useEffect(() => {
     if (!visibleEngineMenuOpen) return;
     const onDocClick = (event: MouseEvent) => {
       const root = enginePickerRef.current;
-      if (!root) return;
-      if (event.target instanceof Node && root.contains(event.target)) return;
+      const menu = engineMenuRef.current;
+      if (event.target instanceof Node) {
+        if (root && root.contains(event.target)) return;
+        if (menu && menu.contains(event.target)) return;
+      }
       setEngineMenuOpen(false);
     };
     const onEsc = (event: KeyboardEvent) => {
@@ -131,6 +172,18 @@ export function Toolbar(props: ToolbarProps) {
       dangerouslySetInnerHTML={{ __html: p.icon }}
     />
   );
+
+  const engineMenuStyle: CSSProperties | undefined = engineMenuLayout
+    ? {
+      position: "fixed",
+      top: engineMenuLayout.top,
+      left: engineMenuLayout.left,
+      width: engineMenuLayout.width,
+      minWidth: 142,
+      maxWidth: 178,
+      transform: "translateX(-50%)",
+    }
+    : undefined;
 
   return (
     <section id="extra-settings">
@@ -178,21 +231,6 @@ export function Toolbar(props: ToolbarProps) {
               </span>
               <span>模型: {ENGINE_LABELS[engineMode] || "ChatGPT"}</span>
             </button>
-            <div id="engine-picker-menu" className={`engine-picker-menu glass-panel ${visibleEngineMenuOpen ? "" : "hidden"}`}>
-              {(["codex", "gemini", "claude", "doubao", "personal"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={mode === engineMode ? "active" : ""}
-                  onClick={() => {
-                    props.onSwitchEngine(mode);
-                    setEngineMenuOpen(false);
-                  }}
-                >
-                  {ENGINE_LABELS[mode]}
-                </button>
-              ))}
-            </div>
           </div>
           {IconBtn({ id: "self-check-btn", title: "环境自检", icon: ICONS.selfCheck, onClick: props.onOpenSelfCheck })}
           {IconBtn({ id: "new-book-btn", title: "新建书籍", icon: ICONS.newBook, onClick: props.onCreateBookQuick })}
@@ -208,6 +246,31 @@ export function Toolbar(props: ToolbarProps) {
           {IconBtn({ title: "系统设置", icon: ICONS.settings, onClick: props.onOpenSettings })}
         </div>
       </LiquidGlassFrame>
+
+      {visibleEngineMenuOpen ? (
+        <LayerPortal>
+          <div
+            ref={engineMenuRef}
+            id="engine-picker-menu"
+            className="engine-picker-menu glass-panel"
+            style={engineMenuStyle}
+          >
+            {(["codex", "gemini", "claude", "doubao", "personal"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={mode === engineMode ? "active" : ""}
+                onClick={() => {
+                  props.onSwitchEngine(mode);
+                  setEngineMenuOpen(false);
+                }}
+              >
+                {ENGINE_LABELS[mode]}
+              </button>
+            ))}
+          </div>
+        </LayerPortal>
+      ) : null}
     </section>
   );
 }

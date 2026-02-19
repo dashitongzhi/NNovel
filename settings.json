@@ -1,7 +1,7 @@
 {
   "settings_version": 1,
   "global": {
-    "engine_mode": "doubao",
+    "engine_mode": "codex",
     "codex_model": "gpt-5.1-codex-mini",
     "gemini_model": "gemini-2.5-flash",
     "claude_model": "sonnet",
@@ -19,5 +19,5 @@
     "personal_model": "deepseek-ai/deepseek-v3.2",
     "proxy_port": "7890"
   },
-  "updated_at": "2026-02-18 17:28:07"
+  "updated_at": "2026-02-19 15:34:59"
 }

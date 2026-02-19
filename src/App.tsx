@@ -8,6 +8,7 @@ import { ModalHost } from "@/components/modals/ModalHost";
 import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
 import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
+import { LayerPortal } from "@/components/shared/LayerPortal";
 import { DEFAULT_BACKGROUND_ID, type BackgroundItem } from "@/config/backgroundLibrary";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
@@ -96,7 +97,7 @@ const FONT_PRESETS: Record<FontPreset, { label: string; ui: string; serif: strin
     serif: '"Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif',
   },
   pingfang: {
-    label: "苹方 / 鸿蒙",
+    label: "苹方",
     ui: '"PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif',
     serif: '"PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", serif',
   },
@@ -193,6 +194,22 @@ const OUTLINE_REQUIRED_FIELDS: Array<keyof OutlineFormState> = [
   "target_words",
   "ending_pref",
 ];
+
+const OUTLINE_REQUIRED_LABELS: Partial<Record<keyof OutlineFormState, string>> = {
+  overall_flow: "总体流程",
+  worldview: "世界观描述",
+  protagonist_tags: "主角性格标签",
+  target_words: "预期字数",
+  ending_pref: "结局偏好",
+};
+
+const OUTLINE_REQUIRED_INPUT_IDS: Partial<Record<keyof OutlineFormState, string>> = {
+  overall_flow: "outline-overall-flow",
+  worldview: "outline-worldview",
+  protagonist_tags: "outline-protagonist-tags",
+  target_words: "outline-target-words",
+  ending_pref: "outline-ending-pref",
+};
 
 const EMPTY_OUTLINE_FORM: OutlineFormState = {
   overall_flow: "",
@@ -539,6 +556,7 @@ function App() {
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [outlinePaused, setOutlinePaused] = useState(false);
   const [outlineForm, setOutlineForm] = useState<OutlineFormState>(EMPTY_OUTLINE_FORM);
+  const [outlineInlineNotice, setOutlineInlineNotice] = useState("");
   const outlineAbortRef = useRef<AbortController | null>(null);
 
   const [modelHealthOpen, setModelHealthOpen] = useState(false);
@@ -940,6 +958,7 @@ function App() {
 
   useEffect(() => {
     if (!outlineOpen) return;
+    setOutlineInlineNotice("");
     window.setTimeout(() => {
       const first = document.getElementById("outline-overall-flow") as HTMLTextAreaElement | null;
       first?.focus();
@@ -1896,6 +1915,7 @@ function App() {
     outlineAbortRef.current = null;
     setOutlineGenerating(false);
     setOutlinePaused(false);
+    setOutlineInlineNotice("");
     setOutlineOpen(false);
   };
 
@@ -1910,12 +1930,24 @@ function App() {
       return;
     }
     if (!outlineFormValid) {
-      ui.addToast("请先填写所有必填项", "error");
+      const firstMissing = OUTLINE_REQUIRED_FIELDS.find((key) => !String(outlineForm[key] || "").trim());
+      const fieldLabel = firstMissing ? (OUTLINE_REQUIRED_LABELS[firstMissing] || "必填项") : "必填项";
+      setOutlineInlineNotice(`请先填写「${fieldLabel}」后再生成大纲`);
+      if (firstMissing) {
+        const inputId = OUTLINE_REQUIRED_INPUT_IDS[firstMissing];
+        if (inputId) {
+          window.setTimeout(() => {
+            const field = document.getElementById(inputId) as HTMLTextAreaElement | HTMLInputElement | null;
+            field?.focus();
+          }, 0);
+        }
+      }
       return;
     }
 
     const controller = new AbortController();
     outlineAbortRef.current = controller;
+    setOutlineInlineNotice("");
     setOutlinePaused(false);
     setOutlineGenerating(true);
 
@@ -2138,6 +2170,16 @@ function App() {
     [activeBackground, ui.strictCloneMode],
   );
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("app-software-gpu", softwareGpuMode);
+    document.body.classList.toggle("app-ui-clone-mode", ui.strictCloneMode);
+    return () => {
+      document.body.classList.remove("app-software-gpu");
+      document.body.classList.remove("app-ui-clone-mode");
+    };
+  }, [softwareGpuMode, ui.strictCloneMode]);
+
   return (
     <>
       <div
@@ -2259,6 +2301,7 @@ function App() {
         </main>
       </div>
 
+      <LayerPortal>
       <ModalHost
         chapterTitleOpen={chapterTitleOpen}
         chapterTitle={chapterTitle}
@@ -3120,16 +3163,15 @@ function App() {
               <input id="outline-ending-pref" className="outline-text-input" placeholder="好结局、坏结局、开放式结局" value={outlineForm.ending_pref} onChange={(e) => setOutlineForm((s) => ({ ...s, ending_pref: e.target.value }))} />
             </div>
           </div>
+          {outlineInlineNotice ? (
+            <div className="outline-inline-notice" role="status" aria-live="polite">{outlineInlineNotice}</div>
+          ) : null}
           <div className="modal-actions" style={{ marginTop: 16 }}>
             <button
               id="outline-generate-confirm-btn"
               className="btn btn-primary"
               type="button"
               onClick={() => {
-                if (!outlineGenerating && !outlineFormValid) {
-                  ui.addToast("请先填写所有必填项后再生成大纲", "warning");
-                  return;
-                }
                 void generateOutlineFromModal();
               }}
             >
@@ -3278,9 +3320,22 @@ function App() {
         </button>
       </div>
 
+      </LayerPortal>
+
       <ToastStack />
     </>
   );
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+

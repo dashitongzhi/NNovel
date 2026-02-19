@@ -1,3 +1,39 @@
+:root {
+  --layer-z-dropdown: 9800;
+  --layer-z-context: 9850;
+  --layer-z-modal: 9900;
+  --layer-z-toast: 9950;
+}
+
+#ui-layer-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--layer-z-modal);
+}
+
+#ui-layer-root > * {
+  pointer-events: auto;
+}
+
+#ui-layer-root .modal-overlay {
+  z-index: var(--layer-z-modal);
+  isolation: isolate;
+}
+
+#ui-layer-root .modal-content {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+#ui-layer-root .engine-picker-menu,
+#ui-layer-root .config-select-menu {
+  z-index: var(--layer-z-dropdown) !important;
+}
+
+#ui-layer-root .context-menu {
+  z-index: var(--layer-z-context) !important;
+}
 #root {
   position: relative;
   isolation: isolate;
@@ -303,7 +339,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  z-index: var(--layer-z-modal);
 }
 
 .modal-content {
@@ -345,7 +381,7 @@
   right: 18px;
   width: min(180px, 21vw);
   min-width: 140px;
-  z-index: 4000;
+  z-index: var(--layer-z-toast);
   pointer-events: none;
 }
 
@@ -1543,8 +1579,8 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
 
 /* Strong frosted dropdowns (model ID / reasoning / toolbar model menu):
    keep color blocks visible while hiding readable text underneath. */
-#app #config-panel .config-select-menu,
-#app #engine-picker-menu.engine-picker-menu {
+.config-select-menu,
+#engine-picker-menu.engine-picker-menu {
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -1566,8 +1602,8 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   will-change: transform, opacity;
 }
 
-#app #config-panel .config-select-menu::before,
-#app #engine-picker-menu.engine-picker-menu::before {
+.config-select-menu::before,
+#engine-picker-menu.engine-picker-menu::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1580,8 +1616,8 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   transform: translate3d(0, 0, 0);
 }
 
-#app #config-panel .config-select-menu::after,
-#app #engine-picker-menu.engine-picker-menu::after {
+.config-select-menu::after,
+#engine-picker-menu.engine-picker-menu::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1590,28 +1626,23 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   background: rgba(244, 248, 255, 0.38);
 }
 
-#app #config-panel .config-select-menu > *,
-#app #engine-picker-menu.engine-picker-menu > * {
+.config-select-menu > *,
+#engine-picker-menu.engine-picker-menu > * {
   position: relative;
   z-index: 2;
 }
 
-#app #config-panel .config-select-menu {
-  top: calc(100% + 6px);
+.config-select-menu {
 }
 
-#app #engine-picker-menu.engine-picker-menu {
-  top: calc(100% + 6px);
-  left: 50% !important;
-  right: auto !important;
-  transform: translateX(-50%) !important;
+#engine-picker-menu.engine-picker-menu {
   min-width: 142px;
   width: min(178px, max-content);
   max-width: 178px;
 }
 
-[data-theme="dark"] #app #config-panel .config-select-menu,
-[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu {
+[data-theme="dark"] .config-select-menu,
+[data-theme="dark"] #engine-picker-menu.engine-picker-menu {
   background: rgba(25, 38, 57, 0.72);
   border-color: rgba(180, 210, 251, 0.34);
   box-shadow:
@@ -1620,15 +1651,15 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
     0 20px 42px rgba(0, 0, 0, 0.5);
 }
 
-[data-theme="dark"] #app #config-panel .config-select-menu::before,
-[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu::before {
+[data-theme="dark"] .config-select-menu::before,
+[data-theme="dark"] #engine-picker-menu.engine-picker-menu::before {
   background: linear-gradient(160deg, rgba(104, 136, 185, 0.5), rgba(31, 49, 76, 0.48));
   backdrop-filter: blur(46px) saturate(1.1) contrast(0.4) brightness(1.03);
   -webkit-backdrop-filter: blur(46px) saturate(1.1) contrast(0.4) brightness(1.03);
 }
 
-[data-theme="dark"] #app #config-panel .config-select-menu::after,
-[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu::after {
+[data-theme="dark"] .config-select-menu::after,
+[data-theme="dark"] #engine-picker-menu.engine-picker-menu::after {
   background: rgba(22, 34, 52, 0.44);
 }
 
@@ -1751,27 +1782,27 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   }
 }
 
-#app #config-panel .config-select-menu:not(.hidden) {
+.config-select-menu:not(.hidden) {
   animation: ios-glass-dropdown-in 190ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
-#app #engine-picker-menu.engine-picker-menu:not(.hidden) {
+#engine-picker-menu.engine-picker-menu:not(.hidden) {
   animation: ios-glass-dropdown-in-center 198ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
-#app #config-panel .config-select-menu:not(.hidden)::before,
-#app #engine-picker-menu.engine-picker-menu:not(.hidden)::before {
+.config-select-menu:not(.hidden)::before,
+#engine-picker-menu.engine-picker-menu:not(.hidden)::before {
   animation: ios-glass-dropdown-surface 208ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
 }
 
-#app #config-panel .config-select-menu:not(.hidden)::after,
-#app #engine-picker-menu.engine-picker-menu:not(.hidden)::after {
+.config-select-menu:not(.hidden)::after,
+#engine-picker-menu.engine-picker-menu:not(.hidden)::after {
   animation: ios-glass-dropdown-overlay-in 208ms cubic-bezier(0.22, 0.78, 0.2, 1) both;
 }
 
@@ -1786,38 +1817,38 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #config-panel .panel-actions .b
   }
 }
 
-#app #config-panel .config-select-menu:not(.hidden) > *,
-#app #engine-picker-menu.engine-picker-menu:not(.hidden) > * {
+.config-select-menu:not(.hidden) > *,
+#engine-picker-menu.engine-picker-menu:not(.hidden) > * {
   animation: ios-glass-dropdown-content-in 116ms cubic-bezier(0.22, 0.78, 0.2, 1) 28ms both;
 }
 
-#app #config-panel .config-select-menu.hidden,
-#app #engine-picker-menu.engine-picker-menu.hidden {
+.config-select-menu.hidden,
+#engine-picker-menu.engine-picker-menu.hidden {
   display: none !important;
   opacity: 0;
   visibility: hidden;
   pointer-events: none !important;
 }
-#app #config-panel .config-select-option,
-#app #engine-picker-menu.engine-picker-menu button {
+.config-select-option,
+#engine-picker-menu.engine-picker-menu button {
   background: rgba(255, 255, 255, 0.52);
   border-color: rgba(255, 255, 255, 0.34);
 }
 
-#app #config-panel .config-select-option:hover,
-#app #engine-picker-menu.engine-picker-menu button:hover {
+.config-select-option:hover,
+#engine-picker-menu.engine-picker-menu button:hover {
   background: rgba(255, 255, 255, 0.26);
   border-color: rgba(255, 255, 255, 0.48);
 }
 
-[data-theme="dark"] #app #config-panel .config-select-option,
-[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu button {
+[data-theme="dark"] .config-select-option,
+[data-theme="dark"] #engine-picker-menu.engine-picker-menu button {
   background: rgba(184, 213, 255, 0.26);
   border-color: rgba(160, 191, 236, 0.32);
 }
 
-[data-theme="dark"] #app #config-panel .config-select-option:hover,
-[data-theme="dark"] #app #engine-picker-menu.engine-picker-menu button:hover {
+[data-theme="dark"] .config-select-option:hover,
+[data-theme="dark"] #engine-picker-menu.engine-picker-menu button:hover {
   background: rgba(197, 223, 255, 0.24);
   border-color: rgba(184, 214, 255, 0.42);
 }
@@ -1986,6 +2017,23 @@ textarea:focus,
 [data-theme="dark"] .book-card,
 [data-theme="dark"] .outline-section {
   background: linear-gradient(155deg, rgba(32, 53, 82, 0.52), rgba(18, 33, 55, 0.3));
+}
+
+.outline-inline-notice {
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 159, 10, 0.48);
+  background: linear-gradient(150deg, rgba(255, 203, 133, 0.28), rgba(255, 173, 94, 0.16));
+  color: rgba(108, 63, 16, 0.96);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .outline-inline-notice {
+  border-color: rgba(255, 190, 107, 0.42);
+  background: linear-gradient(150deg, rgba(111, 80, 33, 0.48), rgba(74, 51, 20, 0.34));
+  color: rgba(255, 228, 188, 0.96);
 }
 
 [data-theme="dark"] .settings-desc,
@@ -2313,7 +2361,10 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #split-chapter-btn.draft-split-
 
 #app.ui-clone-mode .engine-picker-menu,
 #app.ui-clone-mode .config-select-menu,
-#app.ui-clone-mode .context-menu {
+#app.ui-clone-mode .context-menu,
+body.app-ui-clone-mode .engine-picker-menu,
+body.app-ui-clone-mode .config-select-menu,
+body.app-ui-clone-mode .context-menu {
   backdrop-filter: blur(42px) saturate(1.16) contrast(0.42) brightness(1.05);
   -webkit-backdrop-filter: blur(42px) saturate(1.16) contrast(0.42) brightness(1.05);
 }
@@ -2436,10 +2487,6 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #split-chapter-btn.draft-split-
 }
 
 #engine-picker-menu.engine-picker-menu {
-  top: calc(100% + 6px);
-  left: 50% !important;
-  right: auto !important;
-  transform: translateX(-50%) !important;
   min-width: 142px;
   width: min(178px, max-content);
   max-width: 178px;
@@ -2581,20 +2628,26 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #split-chapter-btn.draft-split-
 
 /* Even in software-gpu fallback, keep blur on these small dropdowns for readability/privacy. */
 #app.software-gpu #config-panel .config-select-menu,
-#app.software-gpu #engine-picker-menu.engine-picker-menu {
+#app.software-gpu #engine-picker-menu.engine-picker-menu,
+body.app-software-gpu .config-select-menu,
+body.app-software-gpu #engine-picker-menu.engine-picker-menu {
   background: rgba(245, 249, 255, 0.72) !important;
   backdrop-filter: blur(28px) saturate(1.04) !important;
   -webkit-backdrop-filter: blur(28px) saturate(1.04) !important;
 }
 
 #app.software-gpu #config-panel .config-select-menu::before,
-#app.software-gpu #engine-picker-menu.engine-picker-menu::before {
+#app.software-gpu #engine-picker-menu.engine-picker-menu::before,
+body.app-software-gpu .config-select-menu::before,
+body.app-software-gpu #engine-picker-menu.engine-picker-menu::before {
   backdrop-filter: blur(42px) saturate(1.08) contrast(0.44) !important;
   -webkit-backdrop-filter: blur(42px) saturate(1.08) contrast(0.44) !important;
 }
 
 [data-theme="dark"] #app.software-gpu #config-panel .config-select-menu,
-[data-theme="dark"] #app.software-gpu #engine-picker-menu.engine-picker-menu {
+[data-theme="dark"] #app.software-gpu #engine-picker-menu.engine-picker-menu,
+[data-theme="dark"] body.app-software-gpu .config-select-menu,
+[data-theme="dark"] body.app-software-gpu #engine-picker-menu.engine-picker-menu {
   background: rgba(24, 36, 54, 0.76) !important;
 }
 
@@ -2674,4 +2727,9 @@ html.ui-scrolling #app .sidebar {
 html[data-theme="dark"].ui-scrolling #app .sidebar {
   scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
 }
+
+
+
+
+
 
