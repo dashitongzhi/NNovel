@@ -2310,7 +2310,7 @@ function App() {
               <h4>生成区设置</h4>
               <div className="settings-row">
                 <label htmlFor="typewriter-speed" className="settings-label">打字机速度</label>
-                <div className="settings-control">
+                <div className="settings-control settings-control--range">
                   <input
                     id="typewriter-speed"
                     className={`ios-range ${typewriterRangeSliding ? "is-sliding" : ""}`}
@@ -2340,7 +2340,7 @@ function App() {
               <h4>网络代理</h4>
               <div className="settings-row">
                 <label className="settings-label">代理端口</label>
-                <div className="settings-control">
+                <div className="settings-control settings-control--range">
                   <input id="proxy-port-input" className="settings-number-input" type="text" inputMode="numeric" value={configStore.config.proxy_port || ""} onChange={(e) => configStore.patch({ proxy_port: e.target.value })} placeholder="10808" />
                 </div>
               </div>

@@ -784,6 +784,11 @@
   overflow: hidden;
 }
 
+.settings-modal-content {
+  width: min(700px, 96vw);
+  max-width: min(700px, 96vw);
+}
+
 .settings-modal-content .liquid-glass-content {
   display: flex;
   flex-direction: column;
@@ -796,18 +801,19 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: none;
+  position: relative;
+  --settings-fade-edge: 22px;
+  scrollbar-width: thin;
   scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
+  padding-top: calc(var(--settings-fade-edge) + 6px);
+  padding-bottom: calc(var(--settings-fade-edge) + 6px);
+  padding-right: 8px;
+  margin-right: 0;
   contain: layout paint;
   will-change: scroll-position;
   transform: translateZ(0);
   backface-visibility: hidden;
-}
-
-.settings-modal-content .settings-modal-scroll.is-scrolling,
-.settings-modal-content .settings-modal-scroll:hover,
-.settings-modal-content .settings-modal-scroll:active {
-  scrollbar-width: thin;
 }
 
 .settings-modal-content .settings-modal-scroll::-webkit-scrollbar {
@@ -830,9 +836,7 @@
   transition: background-color 220ms ease, opacity 220ms ease;
 }
 
-.settings-modal-content .settings-modal-scroll.is-scrolling::-webkit-scrollbar-thumb,
-.settings-modal-content .settings-modal-scroll:hover::-webkit-scrollbar-thumb,
-.settings-modal-content .settings-modal-scroll:active::-webkit-scrollbar-thumb {
+.settings-modal-content .settings-modal-scroll.is-scrolling::-webkit-scrollbar-thumb {
   background-color: rgba(112, 126, 152, 0.52);
   opacity: 1;
 }
@@ -841,11 +845,111 @@
   background-color: rgba(176, 200, 238, 0);
 }
 
-[data-theme="dark"] .settings-modal-content .settings-modal-scroll.is-scrolling::-webkit-scrollbar-thumb,
-[data-theme="dark"] .settings-modal-content .settings-modal-scroll:hover::-webkit-scrollbar-thumb,
-[data-theme="dark"] .settings-modal-content .settings-modal-scroll:active::-webkit-scrollbar-thumb {
+[data-theme="dark"] .settings-modal-content .settings-modal-scroll.is-scrolling::-webkit-scrollbar-thumb {
   background-color: rgba(176, 200, 238, 0.46);
   opacity: 1;
+}
+
+.settings-modal-content .settings-modal-scroll.is-scrolling {
+  scrollbar-color: rgba(112, 126, 152, 0.52) transparent;
+}
+
+[data-theme="dark"] .settings-modal-content .settings-modal-scroll.is-scrolling {
+  scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
+}
+
+/* Vertical scroll fade: keep edge content semi-visible, then fully fade out.
+   Opaque strip on the right preserves scrollbar visibility. */
+#draft-content,
+#generated-content,
+#cache-text,
+#discarded-drafts-list,
+.consistency-conflict-list,
+.memory-preview-list,
+#info-box-list,
+.bookshelf-list,
+.chapter-preview-body,
+.outline-modal-body,
+.settings-modal-content .settings-modal-scroll {
+  --scroll-fade-edge: 18px;
+  --scrollbar-strip-width: 12px;
+  -webkit-mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      rgba(0, 0, 0, 0.24) calc(var(--scroll-fade-edge) * 0.45),
+      rgba(0, 0, 0, 0.74) calc(var(--scroll-fade-edge) * 0.78),
+      #000 var(--scroll-fade-edge),
+      #000 calc(100% - var(--scroll-fade-edge)),
+      rgba(0, 0, 0, 0.74) calc(100% - calc(var(--scroll-fade-edge) * 0.78)),
+      rgba(0, 0, 0, 0.24) calc(100% - calc(var(--scroll-fade-edge) * 0.45)),
+      transparent 100%
+    );
+  -webkit-mask-size: var(--scrollbar-strip-width) 100%, calc(100% - var(--scrollbar-strip-width)) 100%;
+  -webkit-mask-position: right top, left top;
+  -webkit-mask-repeat: no-repeat;
+  mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      rgba(0, 0, 0, 0.24) calc(var(--scroll-fade-edge) * 0.45),
+      rgba(0, 0, 0, 0.74) calc(var(--scroll-fade-edge) * 0.78),
+      #000 var(--scroll-fade-edge),
+      #000 calc(100% - var(--scroll-fade-edge)),
+      rgba(0, 0, 0, 0.74) calc(100% - calc(var(--scroll-fade-edge) * 0.78)),
+      rgba(0, 0, 0, 0.24) calc(100% - calc(var(--scroll-fade-edge) * 0.45)),
+      transparent 100%
+    );
+  mask-size: var(--scrollbar-strip-width) 100%, calc(100% - var(--scrollbar-strip-width)) 100%;
+  mask-position: right top, left top;
+  mask-repeat: no-repeat;
+}
+
+/* Safe zones for containers with tighter inner padding. */
+#discarded-drafts-list {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+.bookshelf-list {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.outline-modal-body {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.memory-preview-list {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+/* Chapter manager / self-check: move fade cover slightly upward and keep first row clear. */
+.consistency-conflict-list {
+  --scroll-fade-edge: 14px;
+  padding: 14px 10px 12px;
+}
+
+#self-check-modal .consistency-conflict-list {
+  --scroll-fade-edge: 0px;
+  padding-top: 14px;
+  margin-top: 0;
+  -webkit-mask-image: none;
+  mask-image: none;
+  -webkit-mask-size: auto;
+  mask-size: auto;
+  -webkit-mask-position: initial;
+  mask-position: initial;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+#self-check-modal .consistency-summary {
+  margin-bottom: 8px;
 }
 
 .chapter-item-card {
@@ -974,6 +1078,8 @@ body {
   background: linear-gradient(168deg, rgba(255, 255, 255, 0.46), rgba(246, 250, 255, 0.28));
   border-right: 1px solid var(--glass-border);
   box-shadow: 14px 0 36px rgba(26, 45, 77, 0.08);
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 [data-theme="dark"] .sidebar {
@@ -1091,11 +1197,44 @@ body {
   min-width: 0;
 }
 
+.settings-control--range {
+  position: relative;
+  transition: opacity 240ms ease, filter 240ms ease;
+}
+
+.settings-control--range .ios-range {
+  opacity: 0.86;
+  filter: saturate(0.92);
+  transition: opacity 240ms ease, filter 240ms ease;
+}
+
+.settings-control--range .range-value {
+  opacity: 0.72;
+  transition: opacity 240ms ease, border-color 240ms ease, background 240ms ease, color 240ms ease;
+}
+
+.settings-control--range:hover .ios-range,
+.settings-control--range:focus-within .ios-range,
+.settings-control--range .ios-range.is-sliding {
+  opacity: 1;
+  filter: saturate(1);
+  --range-track-alpha: 1;
+  --range-thumb-alpha: 1;
+}
+
+.settings-control--range:hover .range-value,
+.settings-control--range:focus-within .range-value,
+.settings-control--range .ios-range.is-sliding + .range-value {
+  opacity: 1;
+}
+
 .settings-control .ios-range {
   --range-progress: 50%;
   --range-track-height: 11px;
   --range-fill: rgba(14, 146, 255, 0.96);
   --range-rest: rgba(220, 226, 237, 0.92);
+  --range-track-alpha: 0.84;
+  --range-thumb-alpha: 0.9;
   --range-thumb-width: 54px;
   --range-thumb-height: 36px;
   --range-thumb-offset: -13px;
@@ -1123,18 +1262,20 @@ body {
   height: var(--range-track-height);
   border-radius: 999px;
   border: 1px solid rgba(170, 188, 216, 0.58);
+  opacity: var(--range-track-alpha);
   background:
     linear-gradient(90deg, var(--range-fill) 0, var(--range-fill) var(--range-progress), var(--range-rest) var(--range-progress), var(--range-rest) 100%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.74),
     inset 0 -1px 0 rgba(150, 169, 198, 0.38);
-  transition: border-color 180ms ease, box-shadow 180ms ease;
+  transition: border-color 180ms ease, box-shadow 180ms ease, opacity 240ms ease;
 }
 
 .settings-control .ios-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
+  opacity: var(--range-thumb-alpha);
   width: var(--range-thumb-width);
   height: var(--range-thumb-height);
   margin-top: var(--range-thumb-offset);
@@ -1154,7 +1295,8 @@ body {
     border-radius 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
     border-color 180ms ease,
     box-shadow 180ms ease,
-    background 180ms ease;
+    background 180ms ease,
+    opacity 240ms ease;
   transform: translateZ(0);
 }
 
@@ -1179,10 +1321,12 @@ body {
   height: var(--range-track-height);
   border-radius: 999px;
   border: 1px solid rgba(170, 188, 216, 0.58);
+  opacity: var(--range-track-alpha);
   background: var(--range-rest);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.74),
     inset 0 -1px 0 rgba(150, 169, 198, 0.38);
+  transition: opacity 240ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .settings-control .ios-range::-moz-range-progress {
@@ -1192,6 +1336,7 @@ body {
 }
 
 .settings-control .ios-range::-moz-range-thumb {
+  opacity: var(--range-thumb-alpha);
   width: var(--range-thumb-width);
   height: var(--range-thumb-height);
   border-radius: 22px;
@@ -1209,7 +1354,8 @@ body {
     border-radius 200ms cubic-bezier(0.2, 0.84, 0.24, 1),
     border-color 180ms ease,
     box-shadow 180ms ease,
-    background 180ms ease;
+    background 180ms ease,
+    opacity 240ms ease;
 }
 
 .settings-control .ios-range.is-sliding::-moz-range-track {
@@ -2493,5 +2639,39 @@ html[data-theme="dark"].ui-scrolling #app ::-webkit-scrollbar-thumb,
 
 #app ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Sidebar scrollbar: keep hidden on hover; reveal only while actual scrolling. */
+#app .sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+#app .sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(112, 126, 152, 0);
+  opacity: 0;
+}
+
+html.ui-scrolling #app .sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(112, 126, 152, 0.52);
+  opacity: 1;
+}
+
+[data-theme="dark"] #app .sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0);
+  opacity: 0;
+}
+
+html[data-theme="dark"].ui-scrolling #app .sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0.46);
+  opacity: 1;
+}
+
+html.ui-scrolling #app .sidebar {
+  scrollbar-color: rgba(112, 126, 152, 0.52) transparent;
+}
+
+html[data-theme="dark"].ui-scrolling #app .sidebar {
+  scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
 }
 
