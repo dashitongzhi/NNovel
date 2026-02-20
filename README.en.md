@@ -55,6 +55,7 @@
 | concurrently | ^9.2.1 |
 | cross-env | ^10.1.0 |
 | electron | ^40.4.1 |
+| electron-builder | ^26.8.1 |
 | eslint | ^9.39.1 |
 | eslint-config-prettier | ^10.1.8 |
 | eslint-plugin-react-hooks | ^7.0.1 |
@@ -138,6 +139,35 @@ npm run dev:browser
 | `npm run dev:gpu:desktop-gl` | desktop GL attempt |
 | `npm run dev:gpu:verbose` | verbose GPU logs (`gpu-debug.log`) |
 | `npm run dev:browser` | web-only debug |
+| `npm run dist:check` | verify no unignored packaging artifacts |
+| `npm run dist:win` | build Windows NSIS installer (`NNovel_setup.exe`) |
+| `npm run dist:win:v1` | alias of `dist:win` |
+| `npm run dist:win:portable` | build Windows portable package |
+
+### 6.1 Windows Distribution Installer
+
+Build command:
+
+```bash
+npm run dist:win
+```
+
+Output directory: `E:\Project\exe\v1.0`; installer name is fixed to `NNovel_setup.exe`.
+
+Installer behavior:
+
+- User-selectable install directory (works on any drive).
+- Optional run-after-finish on the final page.
+- Creates runtime `auth.json` template (key names only, no secret values).
+- Backend scripts are shipped inside the app bundle and copied to user runtime directory on launch, so core Python sources are not exposed as plain files in install path.
+- Detects Python and auto-attempts install via `winget` (`Python.Python.3.12`) when missing.
+- Detects `codex / gemini / claude`; prompts user per CLI for optional install.
+
+Official CLI install commands (wired into post-install script):
+
+- OpenAI Codex CLI: `npm install -g @openai/codex`
+- Google Gemini CLI: `npm install -g @google/gemini-cli`
+- Anthropic Claude Code: `npm install -g @anthropic-ai/claude-code`
 
 ### 7) Feature Matrix (Complete)
 
@@ -365,10 +395,10 @@ Look for these in Electron logs:
 - `GET /api/chapters/<int:chapter_id>`
 - `DELETE /api/chapters/<int:chapter_id>`
 
-### 12) Project Structure (`react_test/` root)
+### 12) Project Structure (project root)
 
 ```text
-react_test/
+NNovel/
 ├─ app.py
 ├─ codex_engine.py
 ├─ chapter_manager.py

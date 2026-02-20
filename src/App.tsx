@@ -20,7 +20,7 @@ import { generateChapterTitle, saveChapter } from "@/services/endpoints/chapter"
 import { generateOutline } from "@/services/endpoints/outline";
 import { polishDraft } from "@/services/endpoints/polish";
 import { optimizeReference } from "@/services/endpoints/reference";
-import { getBooks, createBook, switchBook } from "@/services/endpoints/books";
+import { getBooks, createBook, switchBook, deleteBook } from "@/services/endpoints/books";
 import { listChapters, getChapter, deleteChapter, type ChapterItem } from "@/services/endpoints/chapters";
 import { uploadTxt } from "@/services/endpoints/upload";
 import { getBackgroundLibrary } from "@/services/endpoints/backgrounds";
@@ -1565,7 +1565,26 @@ function App() {
     }
     setReferenceOptimizing(true);
     try {
-      const payload = await optimizeReference(configStore.config);
+      const optimizePayload = {
+        reference: rawReference,
+        engine_mode: configStore.config.engine_mode,
+        codex_model: configStore.config.codex_model,
+        gemini_model: configStore.config.gemini_model,
+        claude_model: configStore.config.claude_model,
+        codex_access_mode: configStore.config.codex_access_mode,
+        gemini_access_mode: configStore.config.gemini_access_mode,
+        claude_access_mode: configStore.config.claude_access_mode,
+        codex_reasoning_effort: configStore.config.codex_reasoning_effort,
+        gemini_reasoning_effort: configStore.config.gemini_reasoning_effort,
+        claude_reasoning_effort: configStore.config.claude_reasoning_effort,
+        doubao_reasoning_effort: configStore.config.doubao_reasoning_effort,
+        doubao_models: configStore.config.doubao_models,
+        doubao_model: configStore.config.doubao_model,
+        personal_models: configStore.config.personal_models,
+        personal_model: configStore.config.personal_model,
+        proxy_port: configStore.config.proxy_port,
+      };
+      const payload = await optimizeReference(optimizePayload);
       const nextReference = String(payload.reference || "").trim();
       if (!nextReference) {
         ui.addToast("总结结果为空，请重试", "warning");
@@ -1799,12 +1818,39 @@ function App() {
         setBookshelf(payload.shelf);
       }
       await refreshAll();
+      await reloadChapters();
       generation.clearGenerated();
+      setChapterPreviewOpen(false);
+      setChapterPreviewItem(null);
       ui.addToast("已切换到目标书籍", "success");
       setBookshelfOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "切换书籍失败";
       ui.addToast(`切换书籍失败: ${message}`, "error");
+    }
+  };
+
+  const deleteBookAction = async (bookId: string, title: string): Promise<void> => {
+    const cleanId = String(bookId || "").trim();
+    if (!cleanId) return;
+    const confirmMessage = `确定删除《${title || "未命名作品"}》吗？\n将同时删除该书对应的本地文件夹，且无法恢复。`;
+    if (!window.confirm(confirmMessage)) return;
+    try {
+      const payload = await deleteBook(cleanId);
+      if (payload.shelf) {
+        setBookshelf(payload.shelf);
+      } else {
+        await reloadBookshelf();
+      }
+      await refreshAll();
+      await reloadChapters();
+      generation.clearGenerated();
+      setChapterPreviewOpen(false);
+      setChapterPreviewItem(null);
+      ui.addToast("书籍已删除（含文件夹）", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除书籍失败";
+      ui.addToast(`删除书籍失败: ${message}`, "error");
     }
   };
 
@@ -2940,7 +2986,7 @@ function App() {
       <div id="settings-json-modal" className={`modal-overlay ${settingsEditorOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setSettingsEditorOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <div className="modal-content consistency-modal-content bookshelf-modal-content">
           <div className="modal-header">
             <h3>settings.json</h3>
             <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setSettingsEditorOpen(false)}>×</button>
@@ -2959,7 +3005,7 @@ function App() {
       <div id="auth-json-modal" className={`modal-overlay ${authEditorOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setAuthEditorOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <div className="modal-content consistency-modal-content bookshelf-modal-content">
           <div className="modal-header">
             <h3>auth.json</h3>
             <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setAuthEditorOpen(false)}>×</button>
@@ -2978,7 +3024,7 @@ function App() {
       <div id="bookshelf-modal" className={`modal-overlay ${bookshelfOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) closeBookshelfModal();
       }}>
-        <div className="modal-content consistency-modal-content">
+        <div className="modal-content consistency-modal-content bookshelf-modal-content">
           <div className="modal-header">
             <h3>书架</h3>
             <button
@@ -2990,16 +3036,18 @@ function App() {
               ×
             </button>
           </div>
-          <p id="bookshelf-tip" className="consistency-summary">{bookshelfTip}</p>
-          <div className="settings-row" style={{ marginBottom: 10 }}>
-            <label className="settings-label">新书书名</label>
-            <div className="settings-control">
-              <input id="new-book-title-input" className="settings-number-input" type="text" value={newBookTitle} onChange={(e) => setNewBookTitle(e.target.value)} placeholder="输入书名后创建" />
+          <p id="bookshelf-tip" className="consistency-summary bookshelf-tip">{bookshelfTip}</p>
+          <div className="bookshelf-create-row">
+            <div className="settings-row bookshelf-create-input">
+              <label className="settings-label">新书书名</label>
+              <div className="settings-control">
+                <input id="new-book-title-input" className="settings-number-input" type="text" value={newBookTitle} onChange={(e) => setNewBookTitle(e.target.value)} placeholder="输入书名后创建" />
+              </div>
             </div>
-          </div>
-          <div className="modal-actions" style={{ marginBottom: 12 }}>
-            <button className="btn btn-primary" type="button" onClick={() => void createBookAction()}>创建新书</button>
-            <button className="btn btn-warning" type="button" onClick={() => void reloadBookshelf()}>刷新</button>
+            <div className="modal-actions bookshelf-create-actions">
+              <button className="btn btn-primary" type="button" onClick={() => void createBookAction()}>创建新书</button>
+              <button className="btn btn-warning" type="button" onClick={() => void reloadBookshelf()}>刷新</button>
+            </div>
           </div>
           <div className="bookshelf-list">
             {bookshelfLoading ? (
@@ -3014,12 +3062,28 @@ function App() {
                   <div className={`book-card ${active ? "active" : ""}`} key={book.id}>
                     <div className="book-cover">
                       {book.title}
+                    </div>                    <div className="book-meta">更新时间：{book.updated_at || "-"}</div>
+                    <div className="modal-actions bookshelf-book-actions" style={{ marginTop: 10 }}>
+                      <button
+                        className={`icon-btn toolbar-icon-btn glass-btn ${active ? "active" : ""}`}
+                        type="button"
+                        title={active ? "当前写作中" : "切换到此书"}
+                        aria-label={active ? "当前写作中" : "切换到此书"}
+                        disabled={active}
+                        onClick={() => void switchBookAction(book.id)}
+                      >
+                        <span aria-hidden="true">{active ? "✅" : "🔁"}</span>
+                      </button>
+                      <button
+                        className="icon-btn toolbar-icon-btn glass-btn"
+                        type="button"
+                        title="删除书籍（同步删除文件夹）"
+                        aria-label="删除书籍（同步删除文件夹）"
+                        onClick={() => void deleteBookAction(book.id, String(book.title || "未命名作品"))}
+                      >
+                        <span aria-hidden="true">🗑️</span>
+                      </button>
                     </div>
-                    <div className="book-meta">文件夹：{book.folder || "-"}</div>
-                    <div className="book-meta">更新时间：{book.updated_at || "-"}</div>
-                    <button className={`btn btn-primary btn-sm ${active ? "btn-success" : ""}`} type="button" disabled={active} onClick={() => void switchBookAction(book.id)}>
-                      {active ? "当前写作中" : "切换到此书"}
-                    </button>
                   </div>
                 );
               })
@@ -3196,7 +3260,7 @@ function App() {
       <div id="model-health-modal" className={`modal-overlay ${modelHealthOpen ? "" : "hidden"}`} onClick={(e) => {
         if (e.target === e.currentTarget) setModelHealthOpen(false);
       }}>
-        <div className="modal-content consistency-modal-content">
+        <div className="modal-content consistency-modal-content bookshelf-modal-content">
           <div className="modal-header">
             <h3>模型健康面板</h3>
             <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => setModelHealthOpen(false)}>×</button>
@@ -3245,7 +3309,7 @@ function App() {
           closeInfoContextMenu();
         }
       }}>
-        <div className="modal-content consistency-modal-content">
+        <div className="modal-content consistency-modal-content bookshelf-modal-content">
           <div className="modal-header">
             <h3>信息箱</h3>
             <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={() => {
@@ -3339,8 +3403,6 @@ function App() {
 }
 
 export default App;
-
-
 
 
 

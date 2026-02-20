@@ -22,7 +22,11 @@
     "dev:gpu:nosandbox": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_NO_SANDBOX=1 NNOVEL_GPU_DIAG=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
     "dev:gpu:desktop-gl": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_ANGLE_BACKEND=gl NNOVEL_NO_SANDBOX=1 NNOVEL_GPU_DIAG=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
     "dev:gpu:verbose": "cross-env NNOVEL_FORCE_HARDWARE=1 NNOVEL_GPU_DIAG=1 NNOVEL_GPU_VERBOSE=1 concurrently -k \"npm:dev:backend\" \"npm:dev:web\" \"npm:dev:electron\"",
-    "dev:browser": "vite --host 127.0.0.1 --port 5174 --strictPort"
+    "dev:browser": "vite --host 127.0.0.1 --port 5174 --strictPort",
+    "dist:check": "node scripts/check-artifacts-clean.cjs",
+    "dist:win": "npm run dist:check && npm run build && npx electron-builder --win nsis --config.win.signAndEditExecutable=false",
+    "dist:win:v1": "npm run dist:win",
+    "dist:win:portable": "npm run dist:check && npm run build && npx electron-builder --win portable --config.win.signAndEditExecutable=false"
   },
   "dependencies": {
     "balanced-match": "^4.0.2",
@@ -52,7 +56,64 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
-    "wait-on": "^9.0.4"
+    "wait-on": "^9.0.4",
+    "electron-builder": "^26.8.1"
   },
-  "main": "electron/main.cjs"
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.nnovel.app",
+    "productName": "NNovel",
+    "asar": true,
+    "directories": {
+      "output": "E:/Project/exe/v1.0"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "data_store.py",
+      "config.py",
+      "codex_engine.py",
+      "chapter_manager.py",
+      "app.py",
+      "package.json",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/*.tsx",
+      "!**/*.md"
+    ],
+    "extraResources": [
+      {
+        "from": "background",
+        "to": "background"
+      },
+      {
+        "from": "templates",
+        "to": "templates"
+      },
+      {
+        "from": "static",
+        "to": "static"
+      },
+      {
+        "from": "data",
+        "to": "data"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "artifactName": "NNovel_setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "include": "scripts/installer.nsh"
+    }
+  }
 }

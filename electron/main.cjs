@@ -1,7 +1,14 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, dialog } = require("electron");
 const path = require("path");
+const fs = require("node:fs");
+const { spawn, spawnSync } = require("node:child_process");
+const { pathToFileURL } = require("node:url");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://127.0.0.1:5173";
+const PROD_INDEX_PATH = path.join(__dirname, "..", "dist", "index.html");
+const PROD_URL = pathToFileURL(PROD_INDEX_PATH).toString();
+const BACKEND_PORT = Number(process.env.NNOVEL_BACKEND_PORT || 5050);
+const BACKEND_SOURCE_FILES = ["app.py", "chapter_manager.py", "codex_engine.py", "config.py", "data_store.py"];
 const FEATURE_FLAGS = ["CanvasOopRasterization", "UseSkiaRenderer"];
 const FORCE_HARDWARE = String(process.env.NNOVEL_FORCE_HARDWARE || "1") === "1";
 const STRICT_HARDWARE = String(process.env.NNOVEL_STRICT_HARDWARE || (FORCE_HARDWARE ? "1" : "0")) === "1";
@@ -21,6 +28,34 @@ let rendererGpuHints = {
   opengl: "unknown",
   rasterization: "unknown",
 };
+
+let recoveringRenderer = false;
+let quittingByUser = false;
+let backendProcess = null;
+let preparedBackendDir = "";
+
+function buildPythonCandidates(pythonCode) {
+  const explicitBin = String(process.env.NNOVEL_PYTHON_CMD || '').trim();
+  const explicitArgsRaw = String(process.env.NNOVEL_PYTHON_ARGS || '').trim();
+  const explicitArgs = explicitArgsRaw ? explicitArgsRaw.split(/\s+/).filter(Boolean) : [];
+
+  const candidates = [];
+  if (explicitBin) {
+    candidates.push({
+      bin: explicitBin,
+      probeArgs: [...explicitArgs, '--version'],
+      args: [...explicitArgs, '-c', pythonCode],
+      source: 'env',
+    });
+  }
+
+  candidates.push(
+    { bin: 'python', probeArgs: ['--version'], args: ['-c', pythonCode], source: 'python' },
+    { bin: 'py', probeArgs: ['-3', '--version'], args: ['-3', '-c', pythonCode], source: 'py' }
+  );
+
+  return candidates;
+}
 
 function deriveRendererGpuHints(featureStatus) {
   const gpuCompositing = String((featureStatus && featureStatus.gpu_compositing) || "unknown");
@@ -43,13 +78,26 @@ function setRendererGpuHints(featureStatus) {
   console.log("[electron] renderer gpu hint:", rendererGpuHints);
 }
 
+function getRendererBaseUrl() {
+  return IS_DEV ? DEV_URL : PROD_URL;
+}
+
+function getRendererQuery() {
+  return {
+    gpu_mode: rendererGpuHints.mode,
+    gpu_compositing: rendererGpuHints.gpuCompositing,
+    webgl: rendererGpuHints.webgl,
+    opengl: rendererGpuHints.opengl,
+    rasterization: rendererGpuHints.rasterization,
+  };
+}
+
 function buildRendererUrl(baseUrl) {
   const launchUrl = new URL(baseUrl);
-  launchUrl.searchParams.set("gpu_mode", rendererGpuHints.mode);
-  launchUrl.searchParams.set("gpu_compositing", rendererGpuHints.gpuCompositing);
-  launchUrl.searchParams.set("webgl", rendererGpuHints.webgl);
-  launchUrl.searchParams.set("opengl", rendererGpuHints.opengl);
-  launchUrl.searchParams.set("rasterization", rendererGpuHints.rasterization);
+  const query = getRendererQuery();
+  for (const [key, value] of Object.entries(query)) {
+    launchUrl.searchParams.set(key, String(value));
+  }
   return launchUrl.toString();
 }
 
@@ -62,6 +110,124 @@ function appendFeatureFlags(flags) {
   if (merged.length) {
     app.commandLine.appendSwitch("enable-features", merged.join(","));
   }
+}
+
+function ensurePackagedBackendSources(writableRoot) {
+  const runtimeTempRoot = path.join(writableRoot, "tmp");
+  fs.mkdirSync(runtimeTempRoot, { recursive: true });
+
+  const backendRoot = path.join(runtimeTempRoot, `backend-${process.pid}`);
+  fs.rmSync(backendRoot, { recursive: true, force: true });
+  fs.mkdirSync(backendRoot, { recursive: true });
+
+  const sourceRoot = path.join(__dirname, "..");
+  for (const file of BACKEND_SOURCE_FILES) {
+    const sourcePath = path.join(sourceRoot, file);
+    const targetPath = path.join(backendRoot, file);
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(`missing backend source file: ${sourcePath}`);
+    }
+    fs.copyFileSync(sourcePath, targetPath);
+  }
+
+  return backendRoot;
+}
+function startBackendIfNeeded() {
+  if (IS_DEV) return true;
+  if (backendProcess) return true;
+
+  const resourcesRoot = process.resourcesPath;
+  const writableRoot = path.join(app.getPath("userData"), "runtime");
+
+  let backendRoot = "";
+  try {
+    backendRoot = ensurePackagedBackendSources(writableRoot);
+    preparedBackendDir = backendRoot;
+  } catch (error) {
+    console.error("[electron] failed to prepare packaged backend sources:", error);
+    dialog.showErrorBox("启动失败", "无法准备后端运行文件，请重新安装 NNovel。");
+    return false;
+  }
+
+  const pythonCode = [
+    "import sys",
+    `sys.path.insert(0, r'''${backendRoot}''')`,
+    "import app as nnovel_app",
+    `nnovel_app.app.run(host='127.0.0.1', port=${BACKEND_PORT}, debug=False, use_reloader=False)`,
+  ].join(";");
+
+  const baseEnv = {
+    ...process.env,
+    NNOVEL_RUNTIME_ROOT: writableRoot,
+    NNOVEL_BACKEND_PORT: String(BACKEND_PORT),
+    NNOVEL_RESOURCES_ROOT: resourcesRoot,
+  };
+  delete baseEnv.CLAUDE_CODE_GIT_BASH_PATH;
+
+  const candidates = buildPythonCandidates(pythonCode);
+
+  let selected = null;
+  for (const c of candidates) {
+    try {
+      const probe = spawnSync(c.bin, c.probeArgs, { stdio: 'ignore', windowsHide: true });
+      if (!probe.error && probe.status === 0) {
+        selected = c;
+        break;
+      }
+    } catch {
+      // continue probing
+    }
+  }
+
+  if (!selected) {
+    dialog.showErrorBox(
+      "缺少 Python 运行时",
+      "未检测到 Python（python/py）。请先安装 Python 3.10+ 后再启动 NNovel。"
+    );
+    return false;
+  }
+
+  console.log('[electron] selected python candidate:', selected.source || selected.bin, selected.bin, selected.args.join(' '));
+
+  backendProcess = spawn(selected.bin, selected.args, {
+    stdio: "inherit",
+    env: baseEnv,
+    windowsHide: true,
+  });
+
+  backendProcess.on("error", (error) => {
+    console.error("[electron] backend process launch failed:", error);
+  });
+
+  backendProcess.on("exit", (code) => {
+    if (!quittingByUser) {
+      console.error("[electron] backend process exited:", code);
+    }
+    backendProcess = null;
+    cleanupPreparedBackendDir();
+  });
+
+  return true;
+}
+
+function cleanupPreparedBackendDir() {
+  if (!preparedBackendDir) return;
+  try {
+    fs.rmSync(preparedBackendDir, { recursive: true, force: true });
+  } catch (err) {
+    console.error("[electron] failed to cleanup backend runtime dir:", err);
+  }
+  preparedBackendDir = "";
+}
+
+function stopBackendIfRunning() {
+  if (!backendProcess || backendProcess.killed) return;
+  try {
+    backendProcess.kill();
+  } catch (err) {
+    console.error("[electron] failed to stop backend:", err);
+  }
+  cleanupPreparedBackendDir();
 }
 
 // ── Verbose GPU logging ──────────────────────────────────────────────
@@ -118,9 +284,6 @@ if (FORCE_HARDWARE && STRICT_HARDWARE) {
   app.disableDomainBlockingFor3DAPIs();
 }
 
-let recoveringRenderer = false;
-let quittingByUser = false;
-
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -138,7 +301,11 @@ function createWindow() {
     },
   });
 
-  win.loadURL(buildRendererUrl(DEV_URL));
+  if (IS_DEV) {
+    win.loadURL(buildRendererUrl(getRendererBaseUrl()));
+  } else {
+    win.loadFile(PROD_INDEX_PATH, { query: getRendererQuery() });
+  }
   win.once("ready-to-show", () => {
     win.show();
   });
@@ -211,12 +378,18 @@ app.whenReady().then(async () => {
   console.log("[electron] no sandbox:", NO_SANDBOX);
   console.log("[electron] angle backend:", ANGLE_BACKEND);
   console.log("[electron] gpu profile:", GPU_PROFILE);
+  console.log("[electron] is dev:", IS_DEV);
+  console.log("[electron] renderer base:", getRendererBaseUrl());
   console.log("[electron] disable-gpu switch:", app.commandLine.hasSwitch("disable-gpu"));
   console.log("[electron] disable-gpu-compositing switch:", app.commandLine.hasSwitch("disable-gpu-compositing"));
   console.log("[electron] disable-software-rasterizer switch:", app.commandLine.hasSwitch("disable-software-rasterizer"));
   await initializeGpuState();
   if (FORCE_HARDWARE && STRICT_HARDWARE && rendererGpuHints.mode !== "hardware") {
     console.error("[electron] strict hardware requested but renderer is still software; aborting launch.");
+    app.quit();
+    return;
+  }
+  if (!startBackendIfNeeded()) {
     app.quit();
     return;
   }
@@ -228,6 +401,11 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   quittingByUser = true;
+  stopBackendIfRunning();
+});
+
+app.on("will-quit", () => {
+  stopBackendIfRunning();
 });
 
 app.on("window-all-closed", () => {

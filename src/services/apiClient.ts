@@ -1,6 +1,9 @@
 import type { ApiError, ApiErrorPayload } from "@/types/api";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").trim();
+const RUNTIME_DEFAULT_API_BASE = (typeof window !== "undefined" && window.location.protocol === "file:")
+  ? "http://127.0.0.1:5050"
+  : "";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || RUNTIME_DEFAULT_API_BASE || "").trim();
 const DEV_LOCAL_BACKEND = import.meta.env.DEV && /^https?:\/\/(?:127\.0\.0\.1|localhost):(?:5000|5050)\/?$/i.test(API_BASE);
 
 function buildUrl(path: string): string {

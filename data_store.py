@@ -2,6 +2,7 @@ import copy
 import json
 import os
 import re
+import shutil
 import threading
 import uuid
 from datetime import datetime
@@ -872,6 +873,73 @@ def switch_book(book_id):
         _save_library_locked(library)
         paths = _ensure_book_files_locked(found)
         return {"book": copy.deepcopy(found), "paths": paths}
+
+
+def delete_book(book_id):
+    target = str(book_id or "").strip()
+    if not target:
+        return None
+
+    with _LOCK:
+        _ensure_dir()
+        library = _load_library_locked()
+        books_raw = library.get("books", []) if isinstance(library.get("books"), list) else []
+        books = [_normalize_book_meta(item) for item in books_raw if isinstance(item, dict)]
+
+        target_meta = None
+        remaining = []
+        for meta in books:
+            if meta["id"] == target:
+                target_meta = meta
+            else:
+                remaining.append(meta)
+
+        if not target_meta:
+            return None
+
+        target_paths = _book_paths_from_meta(target_meta)
+        target_root = os.path.abspath(target_paths["root_dir"])
+        books_root = os.path.abspath(_BOOKS_DIR)
+        try:
+            common_root = os.path.commonpath([target_root, books_root])
+        except ValueError:
+            return None
+        if common_root != books_root:
+            return None
+
+        if os.path.isdir(target_root):
+            try:
+                shutil.rmtree(target_root)
+            except Exception:
+                return None
+
+        if not remaining:
+            fallback_id = f"book_{uuid.uuid4().hex[:8]}"
+            fallback_folder = _normalize_book_folder(f"book-{uuid.uuid4().hex[:8]}")
+            remaining = [_default_book_meta(book_id=fallback_id, title="未命名作品", folder=fallback_folder)]
+
+        remaining_ids = {meta["id"] for meta in remaining}
+        active_id = str(library.get("active_book_id", "") or "").strip()
+        if active_id not in remaining_ids:
+            active_id = remaining[0]["id"]
+
+        library["books"] = remaining
+        library["active_book_id"] = active_id
+        library["updated_at"] = _now_text()
+        _save_library_locked(library)
+
+        active_meta = remaining[0]
+        for meta in remaining:
+            if meta["id"] == active_id:
+                active_meta = meta
+                break
+        paths = _ensure_book_files_locked(active_meta)
+
+        return {
+            "deleted": copy.deepcopy(target_meta),
+            "active_book": copy.deepcopy(active_meta),
+            "paths": paths,
+        }
 
 
 # ---------- Project/chapter persistence ----------

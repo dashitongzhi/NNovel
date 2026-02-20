@@ -3,7 +3,10 @@ export async function uploadTxt(target: "outline" | "reference", file: File): Pr
   formData.append("target", target);
   formData.append("file", file);
 
-  const apiBase = (import.meta.env.VITE_API_BASE_URL || "").trim();
+  const runtimeDefaultApiBase = (typeof window !== "undefined" && window.location.protocol === "file:")
+    ? "http://127.0.0.1:5050"
+    : "";
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || runtimeDefaultApiBase || "").trim();
   const url = apiBase
     ? `${apiBase.endsWith("/") ? apiBase.slice(0, -1) : apiBase}/api/upload-file`
     : "/api/upload-file";

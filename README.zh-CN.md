@@ -57,6 +57,7 @@
 | concurrently | ^9.2.1 |
 | cross-env | ^10.1.0 |
 | electron | ^40.4.1 |
+| electron-builder | ^26.8.1 |
 | eslint | ^9.39.1 |
 | eslint-config-prettier | ^10.1.8 |
 | eslint-plugin-react-hooks | ^7.0.1 |
@@ -140,6 +141,35 @@ npm run dev:browser
 | `npm run dev:gpu:desktop-gl` | desktop GL 尝试 |
 | `npm run dev:gpu:verbose` | GPU 详细日志（写入 `gpu-debug.log`） |
 | `npm run dev:browser` | 仅 Vite 前端调试 |
+| `npm run dist:check` | 打包前校验仓库无未忽略产物 |
+| `npm run dist:win` | 构建 Windows 安装包（NSIS，输出 `NNovel_setup.exe`） |
+| `npm run dist:win:v1` | 同 `dist:win` |
+| `npm run dist:win:portable` | 构建 Windows 便携包 |
+
+### 6.1 分发安装包（Windows）
+
+执行：
+
+```bash
+npm run dist:win
+```
+
+产物输出目录：`E:\Project\exe\v1.0`，安装包名固定为 `NNovel_setup.exe`。
+
+安装包行为：
+
+- 支持自定义安装目录（兼容任意盘符）。
+- 安装结束页支持“完成后运行”。
+- 安装后自动创建运行时 `auth.json` 模板（仅键名，不含任何密钥值）。
+- 后端脚本以内包形式分发，并在首次运行时复制到用户运行目录，安装目录不明文暴露核心 Python 源文件。
+- 自动检测 Python；缺失时尝试通过 `winget` 安装 `Python.Python.3.12`。
+- 自动检测 `codex / gemini / claude`；缺失时逐项弹窗询问是否安装。
+
+CLI 官方安装命令（已按官方文档接入安装脚本）：
+
+- OpenAI Codex CLI：`npm install -g @openai/codex`
+- Google Gemini CLI：`npm install -g @google/gemini-cli`
+- Anthropic Claude Code：`npm install -g @anthropic-ai/claude-code`
 
 ### 7) 功能总览（全量）
 
@@ -367,10 +397,10 @@ npm run dev:gpu:strict
 - `GET /api/chapters/<int:chapter_id>`
 - `DELETE /api/chapters/<int:chapter_id>`
 
-### 12) 项目结构（以 `react_test/` 为根）
+### 12) 项目结构（以项目根目录为准）
 
 ```text
-react_test/
+NNovel/
 ├─ app.py
 ├─ codex_engine.py
 ├─ chapter_manager.py

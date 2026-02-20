@@ -481,12 +481,38 @@ def _resolve_codex_from_powershell():
     return ""
 
 
+def _resolve_env_cli_cmd(*keys):
+    for key in keys:
+        value = str(os.environ.get(key, "") or "").strip().strip('"')
+        if not value:
+            continue
+        if os.path.exists(value):
+            return value
+        found = shutil.which(value)
+        if found:
+            return found
+    return ""
+
+
 def _resolve_codex_cmd():
+    override = _resolve_env_cli_cmd("NNOVEL_CODEX_CMD", "CODEX_CMD")
+    if override:
+        return override
     # Only use PowerShell-based resolution.
     return _resolve_codex_from_powershell()
 
 
+def _resolve_gemini_cmd():
+    override = _resolve_env_cli_cmd("NNOVEL_GEMINI_CMD", "GEMINI_CMD")
+    if override:
+        return override
+    return shutil.which("gemini") or ""
+
+
 def _resolve_claude_cmd():
+    override = _resolve_env_cli_cmd("NNOVEL_CLAUDE_CMD", "CLAUDE_CMD")
+    if override:
+        return override
     return shutil.which("claude") or ""
 
 
@@ -2562,7 +2588,7 @@ def get_codex_status():
                 status["gemini_api_ready"] = bool(key)
                 status["gemini_available"] = bool(key)
             else:
-                path = shutil.which("gemini") or ""
+                path = _resolve_gemini_cmd()
                 status["gemini_available"] = bool(path)
                 status["gemini_path"] = path
         elif cfg["mode"] == "claude":
@@ -2670,7 +2696,7 @@ def test_engine_connectivity(config_override=None):
             if ok:
                 return {"ok": True, "engine_mode": mode, "model": cfg.get("gemini_model", ""), "message": "连接检测通过"}
             return {"ok": False, "engine_mode": mode, "model": cfg.get("gemini_model", ""), "message": err or "Gemini API 调用失败"}
-        path = shutil.which("gemini") or ""
+        path = _resolve_gemini_cmd()
         if not path:
             _runtime_mark_error("gemini", cfg.get("gemini_model", ""), "missing executable")
             return {"ok": False, "engine_mode": mode, "message": "未检测到 gemini 可执行文件"}
@@ -2945,7 +2971,7 @@ def get_startup_self_check():
         )
     else:
         any_cli_mode = True
-        gemini_cmd = shutil.which("gemini") or ""
+        gemini_cmd = _resolve_gemini_cmd()
         gemini_ok, gemini_detail = _probe_cli_with_timeout_fallback("gemini", gemini_cmd, ["-help"], cfg)
         checks.append(
             {
@@ -3062,7 +3088,7 @@ def _build_cli_command_variants(cfg):
         return []
     variants = []
     if mode == "gemini":
-        gemini_cmd = shutil.which("gemini") or "gemini"
+        gemini_cmd = _resolve_gemini_cmd() or "gemini"
         base_cmd = [gemini_cmd, "-p", ""]
         if cfg["gemini_model"]:
             base_cmd.extend(["-m", cfg["gemini_model"]])
@@ -3489,34 +3515,11 @@ def polish_draft(
     return {"success": True, "content": content, "error": None}
 
 
-def optimize_reference_prompt(
-    reference,
-    outline="",
-    requirements="",
-    word_target="",
-    extra_settings="",
-    global_memory="",
-    reasoning_effort=None,
-):
+def optimize_reference_prompt(reference, reasoning_effort=None):
     prompt = f"""你是中文长篇小说提示词工程师。请把“原始参考文本”优化为高信息密度、低冗余、可直接用于模型写作的提示词。
 
 【原始参考文本】
 {reference or "无"}
-
-【故事大纲】
-{outline or "无"}
-
-【写作要求】
-{requirements or "无"}
-
-【字数设定】
-{word_target or "无"}
-
-【补充设定】
-{extra_settings or "无"}
-
-【全局记忆】
-{global_memory or "无"}
 
 输出规则（必须遵守）：
 1. 只输出“优化后的参考文本”，不要任何解释、前言、后记、注释。
@@ -3543,7 +3546,6 @@ def optimize_reference_prompt(
     if not optimized:
         return {"success": False, "reference": "", "error": "总结结果为空"}
     return {"success": True, "reference": optimized, "error": None}
-
 
 def _select_thinking_text(elapsed_seconds, clean_text_length):
     time_progress = min(int(elapsed_seconds * 100 / _ESTIMATED_SECONDS), 100)
@@ -4368,4 +4370,3 @@ def check_chapter_consistency(
         "summary": summary,
         "error": None,
     }
-

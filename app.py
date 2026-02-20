@@ -36,6 +36,7 @@ from data_store import (
     auth_backup_file_path,
     auth_file_path,
     create_book,
+    delete_book,
     get_active_book,
     get_active_book_paths,
     get_bookshelf,
@@ -56,7 +57,11 @@ from data_store import (
     load_project,
 )
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+_RESOURCES_ROOT = os.path.abspath(str(os.environ.get("NNOVEL_RESOURCES_ROOT", "") or os.path.dirname(os.path.abspath(__file__))))
+_TEMPLATE_DIR = os.path.join(_RESOURCES_ROOT, "templates")
+_STATIC_DIR = os.path.join(_RESOURCES_ROOT, "static")
+
+app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
 
 generation_tasks = {}
 _generation_lock = threading.Lock()
@@ -67,7 +72,7 @@ _DISCARDED_MAX_ITEMS = 200
 _GEN_CHECKPOINT_KEY = "generation_checkpoint"
 _PAUSE_SNAPSHOT_KEY = "pause_snapshot"
 _DEFAULT_PERSONAL_MODEL = "deepseek-ai/deepseek-v3.2"
-_BACKGROUND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "background")
+_BACKGROUND_DIR = os.path.join(_RESOURCES_ROOT, "background")
 _BACKGROUND_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"}
 _DEFAULT_DOUBAO_MODELS = (
     "doubao-seed-1-6-251015",
@@ -1305,6 +1310,19 @@ def api_books_switch():
     return jsonify({"ok": True, **switched, "shelf": get_bookshelf()})
 
 
+@app.route("/api/books/delete", methods=["POST"])
+def api_books_delete():
+    data = request.get_json(silent=True) or {}
+    book_id = _text(data.get("book_id"))
+    if not book_id:
+        return jsonify({"ok": False, "message": "book_id 不能为空"}), 400
+    deleted = delete_book(book_id)
+    if not deleted:
+        return jsonify({"ok": False, "message": "书籍不存在或无法删除"}), 400
+    _abort_all_generation_tasks()
+    return jsonify({"ok": True, "deleted_id": book_id, "shelf": get_bookshelf()})
+
+
 @app.route("/api/config", methods=["POST"])
 def api_save_config():
     data = request.get_json(silent=True) or {}
@@ -1619,17 +1637,12 @@ def api_optimize_reference():
     if not reference:
         return jsonify({"ok": False, "message": "参考文本为空，无法总结"}), 400
 
-    outline = _text(data.get("outline"))
-    requirements = _text(data.get("requirements"))
-    word_target = _text(data.get("word_target"))
-    extra_settings = _text(data.get("extra_settings"))
-    global_memory = _text(data.get("global_memory"))
     engine_mode = _text(data.get("engine_mode")).lower()
     if engine_mode not in {"codex", "gemini", "doubao", "claude", "personal"}:
         engine_mode = "codex"
 
     project = load_project()
-    prev_cfg = project.get("config", {})
+    prev_cfg = project.get("config", {}) if isinstance(project.get("config"), dict) else {}
     codex_model = _text(data.get("codex_model")) or _text(prev_cfg.get("codex_model"))
     gemini_model = _text(data.get("gemini_model")) or _text(prev_cfg.get("gemini_model"))
     claude_model = _claude_model(_text(data.get("claude_model")) or _text(prev_cfg.get("claude_model")))
@@ -1670,17 +1683,18 @@ def api_optimize_reference():
     personal_model = _personal_model_mirror(personal_models, preferred_personal_model)
     proxy_port = _proxy_port(_text(data.get("proxy_port")) or _text(prev_cfg.get("proxy_port")))
 
-    normalized_memory_text, normalized_memory_structured = _normalize_memory_payload(
-        global_memory or _text(prev_cfg.get("global_memory")),
-        prev_cfg.get("global_memory_structured", {}),
-    )
+    normalized_memory_text = _text(prev_cfg.get("global_memory"))
+    normalized_memory_structured = prev_cfg.get("global_memory_structured", {})
+    if not isinstance(normalized_memory_structured, dict):
+        normalized_memory_structured = {}
+
     project["config"] = {
         "config_version": _config_version(prev_cfg.get("config_version", 2)),
-        "outline": outline or _text(prev_cfg.get("outline")),
+        "outline": _text(prev_cfg.get("outline")),
         "reference": reference,
-        "requirements": requirements or _text(prev_cfg.get("requirements")),
-        "word_target": word_target or _text(prev_cfg.get("word_target")),
-        "extra_settings": extra_settings or _text(prev_cfg.get("extra_settings")),
+        "requirements": _text(prev_cfg.get("requirements")),
+        "word_target": _text(prev_cfg.get("word_target")),
+        "extra_settings": _text(prev_cfg.get("extra_settings")),
         "global_memory": normalized_memory_text,
         "global_memory_structured": normalized_memory_structured,
         "engine_mode": engine_mode,
@@ -1705,11 +1719,6 @@ def api_optimize_reference():
 
     result = optimize_reference_prompt(
         reference=reference,
-        outline=project["config"].get("outline", ""),
-        requirements=project["config"].get("requirements", ""),
-        word_target=project["config"].get("word_target", ""),
-        extra_settings=project["config"].get("extra_settings", ""),
-        global_memory=project["config"].get("global_memory", ""),
         reasoning_effort=request_reasoning_effort,
     )
     if not result.get("success"):
