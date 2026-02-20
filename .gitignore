@@ -44,3 +44,11 @@ latest*.yml
 .vite/
 electron-dist/
 installer/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
+.pytest_cache/
+.mypy_cache/
+

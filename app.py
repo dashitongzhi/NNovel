@@ -26,6 +26,7 @@ from codex_engine import (
     polish_draft,
     optimize_reference_prompt,
     generate_novel_with_progress,
+    generate_chapter_context_pack,
     get_codex_status,
     get_startup_self_check,
     infer_error_code,
@@ -507,15 +508,44 @@ def _cache_summary(text):
     return text[-_CACHE_TAIL_CHARS:]
 
 
+def _generate_context_pack_with_timeout(full_text, existing_pack="", timeout_seconds=15):
+    body = str(full_text or "").strip()
+    if not body:
+        return ""
+
+    result = {"value": ""}
+
+    def _job():
+        try:
+            result["value"] = generate_chapter_context_pack(body, existing_pack)
+        except Exception:
+            result["value"] = ""
+
+    t = threading.Thread(target=_job, daemon=True)
+    t.start()
+    t.join(timeout=max(0.1, float(timeout_seconds or 0)))
+
+    return str(result.get("value", "") or "").strip()
+
+
 def _read_cache(project):
     draft = project.get("draft", {}) if isinstance(project, dict) else {}
     if isinstance(draft, dict):
         draft_content = str(draft.get("content", "") or "")
         if draft_content.strip():
+            cache = project.get("cache", "")
+            pack = ""
+            if isinstance(cache, dict):
+                pack = str(cache.get("context_pack", "") or "").strip()
+            if pack:
+                return pack + "\n\n【最近正文末尾】\n" + _cache_summary(draft_content)
             return _cache_summary(draft_content)
 
     cache = project.get("cache", "")
     if isinstance(cache, dict):
+        pack = str(cache.get("context_pack", "") or "").strip()
+        if pack:
+            return pack
         cache = cache.get("summary", "")
     return _cache_summary(cache)
 
@@ -863,6 +893,17 @@ def _generation_worker(
                 task["runner_pid"] = None
                 task["runner_proc"] = None
 
+    chapter_count = 0
+    try:
+        chapter_items = list_chapters()
+        if isinstance(chapter_items, list):
+            chapter_count = len(chapter_items)
+        elif isinstance(chapter_items, dict):
+            chapter_count = len(chapter_items.get("chapters", []) or [])
+    except Exception:
+        chapter_count = 0
+    current_chapter = max(1, chapter_count + 1)
+
     try:
         _log_with_request(request_id, f"generation worker started task_id={task_id}")
         result = generate_novel_with_progress(
@@ -879,6 +920,7 @@ def _generation_worker(
             on_process_start=_on_process_start,
             on_process_end=_on_process_end,
             request_id=request_id,
+            chapter_number=current_chapter,
         )
     except Exception as e:
         with _generation_lock:
@@ -2200,7 +2242,21 @@ def api_draft_accept():
     if old and not old.endswith("\n"):
         old += "\n\n"
     draft["content"] = old + content
-    project["cache"] = _cache_summary(draft["content"])
+
+    summary = _cache_summary(draft["content"])
+    cache_obj = project.get("cache", {})
+    if not isinstance(cache_obj, dict):
+        cache_obj = {"summary": _cache_summary(cache_obj)}
+
+    existing_pack = str(cache_obj.get("context_pack", "") or "")
+    context_pack = _generate_context_pack_with_timeout(draft["content"], existing_pack, timeout_seconds=15)
+
+    cache_obj["summary"] = summary
+    if context_pack:
+        cache_obj["context_pack"] = context_pack
+    cache_obj["updated_at"] = _now_text()
+    project["cache"] = cache_obj
+
     save_project(project)
 
     return jsonify({"draft_content": draft["content"]})
@@ -2214,7 +2270,14 @@ def api_draft_save():
     project = load_project()
     draft = project.setdefault("draft", {})
     draft["content"] = content
-    project["cache"] = _cache_summary(content)
+
+    cache_obj = project.get("cache", {})
+    if not isinstance(cache_obj, dict):
+        cache_obj = {"summary": _cache_summary(cache_obj)}
+    cache_obj["summary"] = _cache_summary(content)
+    cache_obj["updated_at"] = _now_text()
+    project["cache"] = cache_obj
+
     save_project(project)
 
     return jsonify({"ok": True, "cache": _cache_summary(content), "content": content})
@@ -2427,3 +2490,5 @@ def run_server(host="127.0.0.1", port=PORT, open_browser=False):
 
 if __name__ == "__main__":
     run_server(open_browser=False)
+
+

@@ -8,6 +8,7 @@ from codex_engine import (
     extract_structured_memory_updates,
     extract_global_memory_updates,
     generate_chapter_title,
+    generate_chapter_context_pack,
 )
 from data_store import (
     get_active_output_dir,
@@ -21,6 +22,38 @@ _CHAPTER_LOCK = threading.Lock()
 _CHAPTER_FILE_RE = re.compile(r"^chapter_(\d{3})_第(\d+)章_(.+)\.txt$", re.IGNORECASE)
 _MEMORY_LINE_RE = re.compile(r"^\s*([^|｜]+)\s*[|｜]\s*([^|｜]+)\s*[|｜]\s*(.+?)\s*$")
 _STRUCTURED_MEMORY_TYPES = ("人物", "地点", "状态", "关系")
+
+_CACHE_TAIL_CHARS = 350
+_CONTEXT_PACK_TIMEOUT_SECONDS = 15
+
+
+def _cache_tail_summary(text):
+    body = str(text or "").replace("\r\n", "\n").rstrip()
+    if not body:
+        return ""
+    if len(body) <= 400:
+        return body
+    return body[-_CACHE_TAIL_CHARS:]
+
+
+def _generate_context_pack_with_timeout(full_text, existing_pack="", timeout_seconds=_CONTEXT_PACK_TIMEOUT_SECONDS):
+    body = str(full_text or "").strip()
+    if not body:
+        return ""
+
+    result = {"value": ""}
+
+    def _job():
+        try:
+            result["value"] = generate_chapter_context_pack(body, existing_pack)
+        except Exception:
+            result["value"] = ""
+
+    t = threading.Thread(target=_job, daemon=True)
+    t.start()
+    t.join(timeout=max(0.1, float(timeout_seconds or 0)))
+
+    return str(result.get("value", "") or "").strip()
 
 
 def ensure_output_dir():
@@ -566,9 +599,19 @@ def save_chapter_with_title(content, title):
             consistency_conflicts = [x for x in raw_conflicts if isinstance(x, dict)]
     else:
         consistency_error = str(consistency_result.get("error") or "").strip()
+    cache_obj = project.get("cache", {})
+    if not isinstance(cache_obj, dict):
+        cache_obj = {"summary": _cache_tail_summary(cache_obj)}
+
+    existing_pack = str(cache_obj.get("context_pack", "") or "")
+    context_pack = _generate_context_pack_with_timeout(body, existing_pack)
+    cache_obj["summary"] = _cache_tail_summary(body)
+    if context_pack:
+        cache_obj["context_pack"] = context_pack
+    cache_obj["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    project["cache"] = cache_obj
 
     save_project(project)
-
     return {
         "ok": True,
         "title": chapter_title,
@@ -770,3 +813,5 @@ def get_chapter(chapter_id):
                 "content": content,
             }
     return None
+
+

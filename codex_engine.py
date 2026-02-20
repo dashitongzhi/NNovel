@@ -3314,6 +3314,9 @@ def _load_cache_summary():
 
     cache = project.get("cache", "")
     if isinstance(cache, dict):
+        context_pack = str(cache.get("context_pack", "") or "").strip()
+        if context_pack:
+            return context_pack
         cache = cache.get("summary", "")
     if cache is None:
         cache = ""
@@ -3322,6 +3325,100 @@ def _load_cache_summary():
     if not cache:
         return "（暂无缓存内容）"
     return cache
+
+
+def _count_effective_chars(text):
+    return len(re.sub(r"\s+", "", str(text or "")))
+
+
+def _parse_word_target(word_target_str, fallback=CHARS_PER_BATCH):
+    """解析用户字数设定为 (min, target, max) 三元组。"""
+    raw = str(word_target_str or "").strip()
+    try:
+        base = max(200, int(fallback))
+    except Exception:
+        base = CHARS_PER_BATCH
+
+    if not raw:
+        return (int(base * 0.85), base, int(base * 1.15))
+
+    nums = [int(n) for n in re.findall(r"(\d{3,})", raw)]
+    if not nums:
+        return (int(base * 0.85), base, int(base * 1.15))
+
+    if len(nums) >= 2:
+        lo, hi = min(nums), max(nums)
+        target = max(lo, (lo + hi) // 2)
+        return (lo, target, hi)
+
+    target = nums[0]
+    return (int(target * 0.85), target, int(target * 1.15))
+
+
+def _build_chapter_progress_block(chapter_number):
+    try:
+        n = int(chapter_number or 0)
+    except Exception:
+        n = 0
+
+    if n <= 1:
+        return ""
+
+    return (
+        f"【当前进度】\n"
+        f"正在写第{n}章（已完成{max(n - 1, 0)}章）\n"
+        f"请根据大纲推断当前章节应写的内容段落，不要从头开始叙述。\n\n"
+    )
+
+
+def _tail_fallback_text(text, limit=350):
+    s = str(text or "").replace("\r\n", "\n").strip()
+    if not s:
+        return ""
+    if len(s) <= limit:
+        return s
+    return s[-limit:]
+
+
+def generate_chapter_context_pack(full_text, existing_pack=""):
+    """生成结构化章节承接包，供后续章节续写参考。"""
+    full = str(full_text or "").strip()
+    if not full:
+        return ""
+
+    snippet = full[-3000:] if len(full) > 3000 else full
+    prompt = f"""你是小说编辑助手。请将已写内容浓缩为结构化承接包。
+
+【已有承接包】
+{existing_pack or "无"}
+
+【新增内容】
+{snippet}
+
+严格按以下四段输出（每段一个标签，不要多余内容）：
+
+【情节摘要】
+用 2-3 句话概括本段新发生的关键事件和转折点。
+
+【新增事件】
+用编号列出本段新引入的事件、人物、地点（仅列新增项，已有的不重复）。
+
+【未闭环悬念】
+列出当前尚未解决的冲突、伏笔、悬念。
+
+【下章推进目标】
+基于当前进展，下一段应该写什么（1-2 句话）。
+
+要求：总字数 300-500 字，只输出承接包，不要解释，不要 Markdown 代码块。"""
+
+    ok, raw, _ = _run_prompt(prompt)
+    if not ok:
+        return _tail_fallback_text(full, limit=350)
+
+    pack = _clean_generated_text(raw)
+    if not pack:
+        return _tail_fallback_text(full, limit=350)
+    return pack
 
 
 def generate_novel_batch(
@@ -3334,6 +3431,7 @@ def generate_novel_batch(
     global_memory=None,
     draft_so_far=None,
     reasoning_effort=None,
+    chapter_number=None,
 ):
     # Backward-compatible positional parsing:
     # old: (extra_settings, global_memory, draft_so_far)
@@ -3348,10 +3446,13 @@ def generate_novel_batch(
         elif len(args) >= 4:
             resolved_word_target, resolved_extra_settings, resolved_global_memory, resolved_draft_so_far = args[:4]
 
+    wmin, effective_target, _ = _parse_word_target(resolved_word_target, CHARS_PER_BATCH)
     cache_summary = _load_cache_summary()
+    chapter_progress_block = _build_chapter_progress_block(chapter_number)
+
     prompt = f"""你是一位中文长篇小说作者，请基于以下信息继续写作。
 
-【故事大纲】
+{chapter_progress_block}【故事大纲】
 {outline or "无"}
 
 【参考设定/文风参考】
@@ -3375,12 +3476,16 @@ def generate_novel_batch(
 【当前已写草稿】
 {resolved_draft_so_far or "（暂无）"}
 
-请严格输出约{CHARS_PER_BATCH}字中文小说正文，要求：
+请严格输出不少于{effective_target}字中文小说正文（目标{effective_target}字，允许上浮10%但不允许不足），要求：
 1. 只输出正文内容，不要标题、编号、解释、注释、前言、后记。
-2. 保持情节连贯、人物行为一致、语言自然。
-3. 尽量形成完整的叙事推进与情绪起伏。
-4. 不要使用Markdown格式，不要代码块，不要多余说明。
-5. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
+2. 【关键】你必须从【当前已写草稿】的末尾无缝续写新内容。严禁重写或复述已写草稿中的任何情节、场景和对话。
+3. 【关键】严禁重复【已完成章节摘要】中提到的事件。必须推进到新的情节节点。
+4. 参考承接包中的【未闭环悬念】推进剧情，参考【下章推进目标】确定写作方向。
+5. 保持情节连贯、人物行为一致、语言自然，确保与已完成内容在时间线和人物状态上一致。
+6. 形成完整的叙事推进与情绪起伏，包含新的场景、对话或事件。
+7. 不要使用Markdown格式，不要代码块，不要多余说明。
+8. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
+9. 字数要求：目标{effective_target}字，不足{wmin}字不合格。请确保输出足够长度。
 """
 
     ok, raw, err = _run_prompt(prompt, reasoning_effort_override=reasoning_effort)
@@ -3390,10 +3495,32 @@ def generate_novel_batch(
     content = _clean_generated_text(raw)
     if not content:
         return {"success": False, "content": "", "error": "生成结果为空"}
+
+
+    actual_chars = _count_effective_chars(content)
+    if actual_chars < int(effective_target * 0.6):
+        remaining = max(200, effective_target - actual_chars)
+        extend_prompt = f"""你是中文长篇小说作者。以下是未完成的章节片段，请从末尾继续写作。
+
+【已写内容】
+{content[-1500:]}
+
+【已完成章节摘要】
+{cache_summary}
+
+请继续输出约{remaining}字正文，从上文末尾无缝衔接。
+不要重复上文内容，只输出新增正文。不要标题、解释、Markdown。"""
+
+        ok2, raw2, _ = _run_prompt(extend_prompt, reasoning_effort_override=reasoning_effort)
+        if ok2:
+            extra = _clean_generated_text(raw2)
+            if extra:
+                content = content.rstrip() + "\n\n" + extra.lstrip()
+
     return {"success": True, "content": content, "error": None}
 
-
 def generate_outline(
+
     outline_seed,
     reference,
     requirements,
@@ -3875,6 +4002,7 @@ def generate_novel_with_progress(
     on_process_start=None,
     on_process_end=None,
     request_id="",
+    chapter_number=None,
 ):
     # Backward-compatible positional parsing:
     # old: (extra_settings, global_memory, draft_so_far)
@@ -3889,10 +4017,13 @@ def generate_novel_with_progress(
         elif len(args) >= 4:
             resolved_word_target, resolved_extra_settings, resolved_global_memory, resolved_draft_so_far = args[:4]
 
+    wmin, effective_target, _ = _parse_word_target(resolved_word_target, CHARS_PER_BATCH)
     cache_summary = _load_cache_summary()
+    chapter_progress_block = _build_chapter_progress_block(chapter_number)
+
     prompt = f"""你是一位中文长篇小说作者，请基于以下信息继续写作。
 
-【故事大纲】
+{chapter_progress_block}【故事大纲】
 {outline or "无"}
 
 【参考设定/文风参考】
@@ -3916,12 +4047,16 @@ def generate_novel_with_progress(
 【当前已写草稿】
 {resolved_draft_so_far or "（暂无）"}
 
-请严格输出约{CHARS_PER_BATCH}字中文小说正文，要求：
+请严格输出不少于{effective_target}字中文小说正文（目标{effective_target}字，允许上浮10%但不允许不足），要求：
 1. 只输出正文内容，不要标题、编号、解释、注释、前言、后记。
-2. 保持情节连贯、人物行为一致、语言自然。
-3. 尽量形成完整的叙事推进与情绪起伏。
-4. 不要使用Markdown格式，不要代码块，不要多余说明。
-5. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
+2. 【关键】你必须从【当前已写草稿】的末尾无缝续写新内容。严禁重写或复述已写草稿中的任何情节、场景和对话。
+3. 【关键】严禁重复【已完成章节摘要】中提到的事件。必须推进到新的情节节点。
+4. 参考承接包中的【未闭环悬念】推进剧情，参考【下章推进目标】确定写作方向。
+5. 保持情节连贯、人物行为一致、语言自然，确保与已完成内容在时间线和人物状态上一致。
+6. 形成完整的叙事推进与情绪起伏，包含新的场景、对话或事件。
+7. 不要使用Markdown格式，不要代码块，不要多余说明。
+8. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
+9. 字数要求：目标{effective_target}字，不足{wmin}字不合格。请确保输出足够长度。
 """
 
     if on_progress:
@@ -3941,8 +4076,45 @@ def generate_novel_with_progress(
     content = _clean_generated_text(raw)
     if not content:
         return {"success": False, "content": "", "error": "生成结果为空"}
-    return {"success": True, "content": content, "error": None}
 
+    actual_chars = _count_effective_chars(content)
+    if content and actual_chars < int(effective_target * 0.6):
+        if on_progress:
+            on_progress(content, "首轮字数不足，正在继续补写…")
+
+        remaining = max(200, effective_target - actual_chars)
+        extend_prompt = f"""你是中文长篇小说作者。以下是未完成的章节片段，请从末尾继续写作。
+
+【已写内容】
+{content[-1500:]}
+
+【已完成章节摘要】
+{cache_summary}
+
+请继续输出约{remaining}字正文，从上文末尾无缝衔接。
+不要重复上文内容，只输出新增正文。不要标题、解释、Markdown。"""
+
+        def _on_extend_progress(partial_text, thinking_text):
+            if not on_progress:
+                return
+            base = content.rstrip()
+            merged = base if not partial_text else (base + "\n\n" + str(partial_text).lstrip())
+            on_progress(merged, thinking_text)
+
+        ok2, raw2, _ = _run_prompt_with_progress(
+            extend_prompt,
+            _on_extend_progress if on_progress else None,
+            should_stop=should_stop,
+            on_process_start=on_process_start,
+            on_process_end=on_process_end,
+            reasoning_effort_override=reasoning_effort,
+        )
+        if ok2:
+            extra = _clean_generated_text(raw2)
+            if extra:
+                content = content.rstrip() + "\n\n" + extra.lstrip()
+
+    return {"success": True, "content": content, "error": None}
 
 def generate_chapter_title(chapter_content):
     content = (chapter_content or "").strip()
@@ -3956,14 +4128,16 @@ def generate_chapter_title(chapter_content):
 
     prompt = f"""你是中文小说编辑，请为章节拟一个简洁有吸引力的标题。
 
-【章节摘要（节选）】
+【章节内容（节选）】
 {summary}
 
 要求：
 1. 标题为4到10个中文字符。
-2. 不要标点符号，不要引号，不要"第X章"。
-3. 只输出标题本身，不要任何解释。
-"""
+2. 标题必须反映本章中最核心的新事件或关键转折，不要笼统概括。
+3. 优先使用本章独有的关键词——新出现的人物名、地点名、关键物品、核心冲突。
+4. 避免"新的开始""命运之路""暗流涌动"等空泛词语，要具体、有画面感。
+5. 不要标点符号，不要引号，不要"第X章"。
+6. 只输出标题本身，不要任何解释。"""
 
     ok, raw, err = _run_prompt(prompt)
     if not ok:
@@ -3973,7 +4147,6 @@ def generate_chapter_title(chapter_content):
     if not title:
         return {"success": False, "title": "", "error": "标题生成失败"}
     return {"success": True, "title": title, "error": None}
-
 
 _MEMORY_LINE_RE = re.compile(r"^\s*([^|｜]+)\s*[|｜]\s*([^|｜]+)\s*[|｜]\s*(.+?)\s*$")
 _MEMORY_COLON_RE = re.compile(r"^\s*([^：:]+)\s*[：:]\s*([^：:]+)\s*[：:]\s*(.+?)\s*$")
@@ -4370,3 +4543,4 @@ def check_chapter_consistency(
         "summary": summary,
         "error": None,
     }
+
