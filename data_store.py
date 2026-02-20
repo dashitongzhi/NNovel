@@ -169,7 +169,11 @@ def _default_project():
             "content": "",
             "last_generated": "",
         },
-        "cache": "",
+        "cache": {
+            "summary": "",
+            "context_pack": "",
+            "updated_at": "",
+        },
         "stats": {
             "total_chars": 0,
             "total_chapters": 0,
@@ -295,9 +299,27 @@ def _book_paths_from_meta(meta):
     }
 
 
+
+def _normalize_project_cache(cache_value):
+    if isinstance(cache_value, dict):
+        return {
+            "summary": str(cache_value.get("summary", "") or ""),
+            "context_pack": str(cache_value.get("context_pack", "") or ""),
+            "updated_at": str(cache_value.get("updated_at", "") or ""),
+        }
+
+    legacy = str(cache_value or "")
+    return {
+        "summary": legacy,
+        "context_pack": "",
+        "updated_at": "",
+    }
+
 def _migrate_project_data(data):
     if not isinstance(data, dict):
         return _default_project()
+
+    data["cache"] = _normalize_project_cache(data.get("cache", {}))
 
     config = data.setdefault("config", {})
     if not isinstance(config, dict):
