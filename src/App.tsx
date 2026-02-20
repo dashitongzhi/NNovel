@@ -3045,8 +3045,20 @@ function App() {
               </div>
             </div>
             <div className="modal-actions bookshelf-create-actions">
-              <button className="btn btn-primary" type="button" onClick={() => void createBookAction()}>创建新书</button>
-              <button className="btn btn-warning" type="button" onClick={() => void reloadBookshelf()}>刷新</button>
+              <button
+                className={ui.strictCloneMode ? "engine-picker-btn glass-btn" : "btn btn-primary"}
+                type="button"
+                onClick={() => void createBookAction()}
+              >
+                创建新书
+              </button>
+              <button
+                className={ui.strictCloneMode ? "engine-picker-btn glass-btn" : "btn btn-warning"}
+                type="button"
+                onClick={() => void reloadBookshelf()}
+              >
+                刷新
+              </button>
             </div>
           </div>
           <div className="bookshelf-list">
@@ -3403,6 +3415,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
