@@ -54,7 +54,7 @@ export function ModalHost(props: ModalHostProps) {
         <div className="modal-content memory-preview-content">
           <div className="modal-header">
             <h3>全局记忆更新预览</h3>
-            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={props.onCloseMemory}>×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" type="button" onClick={props.onCloseMemory}>❌</button>
           </div>
           <div className="memory-stat-bar">
             <div className="stat-item stat-added"><span className="stat-count">{props.memoryAdded.length}</span><span className="stat-label">新增</span></div>
@@ -91,7 +91,7 @@ export function ModalHost(props: ModalHostProps) {
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>连贯性校验结果</h3>
-            <button className="icon-btn settings-modal-header-icon-btn" onClick={props.onCloseConsistency} type="button">×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" onClick={props.onCloseConsistency} type="button">❌</button>
           </div>
           <p className="consistency-summary">{props.consistencySummary || "检测到连贯性冲突，请按以下建议修复。"}</p>
           <div className="consistency-conflict-list">
@@ -118,7 +118,7 @@ export function ModalHost(props: ModalHostProps) {
         <div className="modal-content consistency-modal-content">
           <div className="modal-header">
             <h3>环境自检</h3>
-            <button className="icon-btn settings-modal-header-icon-btn" onClick={props.onCloseSelfCheck} type="button">×</button>
+            <button className="icon-btn settings-modal-header-icon-btn" onClick={props.onCloseSelfCheck} type="button">❌</button>
           </div>
           <div id="self-check-loading" className={props.selfCheckLoading ? "" : "hidden"} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
             <div className="thinking-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
@@ -156,4 +156,5 @@ export function ModalHost(props: ModalHostProps) {
     </>
   );
 }
+
 
