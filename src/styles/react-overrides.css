@@ -450,8 +450,8 @@
   isolation: isolate;
 }
 
-#toolbar-container .toolbar-group.right .icon-btn,
-#toolbar-container .toolbar-group.right .engine-picker-btn {
+.toolbar-group.right .icon-btn,
+.toolbar-group.right .engine-picker-btn {
   transition-property: transform, background-color, border-color, box-shadow, color, opacity;
 }
 
@@ -478,6 +478,23 @@
 
 .toolbar-group.right .toolbar-item-isolate > .toolbar-icon-btn,
 .toolbar-group.right .toolbar-item-isolate .engine-picker-btn {
+  will-change: transform;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.bookshelf-book-actions .toolbar-item-isolate {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  pointer-events: auto;
+}
+
+.bookshelf-book-actions .toolbar-item-isolate > .toolbar-icon-btn {
   will-change: transform;
   transform-style: preserve-3d;
   backface-visibility: hidden;
@@ -999,12 +1016,18 @@
 }
 
 .bookshelf-book-actions {
-  justify-content: flex-start;
-  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
 }
 
-.bookshelf-book-actions > button {
+.bookshelf-book-actions > button,
+.bookshelf-book-actions .toolbar-icon-btn {
   flex: 0 0 auto !important;
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
 }
 
 .bookshelf-modal-content {
@@ -1042,8 +1065,16 @@
 
 .bookshelf-create-actions {
   margin-bottom: 0;
+  align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
+}
+
+.bookshelf-create-actions > button {
+  flex: 0 0 auto !important;
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
 }
 
 .bookshelf-list {
@@ -1063,8 +1094,15 @@
 }
 
 .book-cover {
+  width: 156px;
+  min-width: 156px;
+  max-width: 156px;
   height: 90px;
+  margin: 0 auto;
+  padding: 8px 10px;
   font-size: 15px;
+  line-height: 1.35;
+  overflow: hidden;
 }
 
 .book-meta {
@@ -1088,7 +1126,7 @@
   }
 
   .bookshelf-create-actions {
-    justify-content: stretch;
+    justify-content: flex-start;
   }
 
   .bookshelf-list {
@@ -2461,7 +2499,13 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #engine-picker-btn svg {
 #app.ui-clone-mode .toolbar-btn,
 #app.ui-clone-mode .config-select-btn,
 #app.ui-clone-mode .settings-entry-btn,
-#app.ui-clone-mode .btn {
+#app.ui-clone-mode .btn,
+body.app-ui-clone-mode #bookshelf-modal .icon-btn,
+body.app-ui-clone-mode #bookshelf-modal .engine-picker-btn,
+body.app-ui-clone-mode #bookshelf-modal .toolbar-btn,
+body.app-ui-clone-mode #bookshelf-modal .config-select-btn,
+body.app-ui-clone-mode #bookshelf-modal .settings-entry-btn,
+body.app-ui-clone-mode #bookshelf-modal .btn {
   border: 1px solid rgba(255, 255, 255, 0.62);
   border-radius: 999px;
   backdrop-filter: blur(24px) saturate(1.08);
@@ -2506,7 +2550,13 @@ html:not([data-theme="dark"]) #app.ui-clone-mode #split-chapter-btn.draft-split-
 [data-theme="dark"] #app.ui-clone-mode .toolbar-btn,
 [data-theme="dark"] #app.ui-clone-mode .config-select-btn,
 [data-theme="dark"] #app.ui-clone-mode .settings-entry-btn,
-[data-theme="dark"] #app.ui-clone-mode .btn {
+[data-theme="dark"] #app.ui-clone-mode .btn,
+[data-theme="dark"] body.app-ui-clone-mode #bookshelf-modal .icon-btn,
+[data-theme="dark"] body.app-ui-clone-mode #bookshelf-modal .engine-picker-btn,
+[data-theme="dark"] body.app-ui-clone-mode #bookshelf-modal .toolbar-btn,
+[data-theme="dark"] body.app-ui-clone-mode #bookshelf-modal .config-select-btn,
+[data-theme="dark"] body.app-ui-clone-mode #bookshelf-modal .settings-entry-btn,
+[data-theme="dark"] body.app-ui-clone-mode #bookshelf-modal .btn {
   border-color: rgba(171, 203, 247, 0.36);
   background: linear-gradient(180deg, rgba(67, 99, 142, 0.54), rgba(26, 44, 70, 0.34));
   box-shadow:
@@ -2926,6 +2976,7 @@ html[data-theme="dark"].ui-scrolling #app .sidebar {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
 
 
 

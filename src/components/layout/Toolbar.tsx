@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { ENGINE_LABELS } from "@/config/defaults";
 import type { AppConfig, StartupStatus } from "@/types/domain";
 import { LiquidGlassFrame } from "@/components/shared/LiquidGlassFrame";
 import { LayerPortal } from "@/components/shared/LayerPortal";
+import { ToolbarIconButton, ToolbarItemIsolate as ToolbarIsolate } from "@/components/shared/ToolbarIconButton";
 
 interface ToolbarProps {
   sidebarCollapsed: boolean;
@@ -148,28 +149,13 @@ export function Toolbar(props: ToolbarProps) {
   }, [visibleEngineMenuOpen]);
 
   const IconBtn = (p: { id?: string; title: string; active?: boolean; icon: string; onClick: () => void; disabled?: boolean }) => (
-    <button
+    <ToolbarIconButton
       id={p.id}
-      className={`icon-btn toolbar-icon-btn glass-btn ${p.active ? "active" : ""}`}
-      type="button"
       title={p.title}
-      aria-label={p.title}
-      disabled={Boolean(p.disabled)}
-      onMouseDown={(event) => {
-        if (p.disabled) return;
-        event.preventDefault();
-        event.currentTarget.dataset.fastPressed = "1";
-        p.onClick();
-      }}
-      onClick={(event) => {
-        if (p.disabled) return;
-        if (event.currentTarget.dataset.fastPressed === "1") {
-          event.currentTarget.dataset.fastPressed = "";
-          return;
-        }
-        p.onClick();
-      }}
-      dangerouslySetInnerHTML={{ __html: p.icon }}
+      icon={p.icon}
+      active={p.active}
+      disabled={p.disabled}
+      onClick={p.onClick}
     />
   );
 
@@ -184,11 +170,6 @@ export function Toolbar(props: ToolbarProps) {
       transform: "translateX(-50%)",
     }
     : undefined;
-
-  const ToolbarIsolate = (p: { children: ReactNode; className?: string }) => {
-    const className = p.className ? `toolbar-item-isolate ${p.className}` : "toolbar-item-isolate";
-    return <span className={className}>{p.children}</span>;
-  };
 
   return (
     <section id="extra-settings">

@@ -9,6 +9,7 @@ import { ToastStack } from "@/components/shared/ToastStack";
 import { ConfigSelect } from "@/components/shared/ConfigSelect";
 import { ModelIdListEditor } from "@/components/shared/ModelIdListEditor";
 import { LayerPortal } from "@/components/shared/LayerPortal";
+import { ToolbarIconButton, ToolbarItemIsolate } from "@/components/shared/ToolbarIconButton";
 import { DEFAULT_BACKGROUND_ID, type BackgroundItem } from "@/config/backgroundLibrary";
 import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
@@ -3044,21 +3045,21 @@ function App() {
                 <input id="new-book-title-input" className="settings-number-input" type="text" value={newBookTitle} onChange={(e) => setNewBookTitle(e.target.value)} placeholder="输入书名后创建" />
               </div>
             </div>
-            <div className="modal-actions bookshelf-create-actions">
-              <button
-                className={ui.strictCloneMode ? "engine-picker-btn glass-btn" : "btn btn-primary"}
-                type="button"
-                onClick={() => void createBookAction()}
-              >
-                创建新书
-              </button>
-              <button
-                className={ui.strictCloneMode ? "engine-picker-btn glass-btn" : "btn btn-warning"}
-                type="button"
-                onClick={() => void reloadBookshelf()}
-              >
-                刷新
-              </button>
+            <div className="modal-actions bookshelf-create-actions toolbar-group right">
+              <ToolbarItemIsolate>
+                <ToolbarIconButton
+                  title="创建新书"
+                  icon="➕"
+                  onClick={() => void createBookAction()}
+                />
+              </ToolbarItemIsolate>
+              <ToolbarItemIsolate>
+                <ToolbarIconButton
+                  title="刷新书架"
+                  icon="🔄"
+                  onClick={() => void reloadBookshelf()}
+                />
+              </ToolbarItemIsolate>
             </div>
           </div>
           <div className="bookshelf-list">
@@ -3074,27 +3075,24 @@ function App() {
                   <div className={`book-card ${active ? "active" : ""}`} key={book.id}>
                     <div className="book-cover">
                       {book.title}
-                    </div>                    <div className="book-meta">更新时间：{book.updated_at || "-"}</div>
-                    <div className="modal-actions bookshelf-book-actions" style={{ marginTop: 10 }}>
-                      <button
-                        className={`icon-btn toolbar-icon-btn glass-btn ${active ? "active" : ""}`}
-                        type="button"
-                        title={active ? "当前写作中" : "切换到此书"}
-                        aria-label={active ? "当前写作中" : "切换到此书"}
-                        disabled={active}
-                        onClick={() => void switchBookAction(book.id)}
-                      >
-                        <span aria-hidden="true">{active ? "✅" : "🔁"}</span>
-                      </button>
-                      <button
-                        className="icon-btn toolbar-icon-btn glass-btn"
-                        type="button"
-                        title="删除书籍（同步删除文件夹）"
-                        aria-label="删除书籍（同步删除文件夹）"
-                        onClick={() => void deleteBookAction(book.id, String(book.title || "未命名作品"))}
-                      >
-                        <span aria-hidden="true">🗑️</span>
-                      </button>
+                    </div>
+                    <div className="book-meta">更新时间：{book.updated_at || "-"}</div>
+                    <div className="modal-actions bookshelf-book-actions toolbar-group right" style={{ marginTop: 10 }}>
+                      <ToolbarItemIsolate>
+                        <ToolbarIconButton
+                          active={active}
+                          title={active ? "当前写作中" : "切换到此书"}
+                          icon={active ? "✅" : "🔁"}
+                          onClick={() => { if (!active) void switchBookAction(book.id); }}
+                        />
+                      </ToolbarItemIsolate>
+                      <ToolbarItemIsolate>
+                        <ToolbarIconButton
+                          title="删除书籍（同步删除文件夹）"
+                          icon="🗑️"
+                          onClick={() => void deleteBookAction(book.id, String(book.title || "未命名作品"))}
+                        />
+                      </ToolbarItemIsolate>
                     </div>
                   </div>
                 );
@@ -3415,6 +3413,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
