@@ -2275,6 +2275,7 @@ def api_draft_save():
     if not isinstance(cache_obj, dict):
         cache_obj = {"summary": _cache_summary(cache_obj)}
     cache_obj["summary"] = _cache_summary(content)
+    cache_obj["context_pack"] = ""  # draft manual edit invalidates previous structured pack
     cache_obj["updated_at"] = _now_text()
     project["cache"] = cache_obj
 

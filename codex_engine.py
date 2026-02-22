@@ -3384,6 +3384,21 @@ def _build_no_repeat_tail_block(draft_text, limit=900):
     tail = s[-max(120, int(limit or 0)):]
     return f"【禁止重复片段】\n{tail}"
 
+
+def _clip_draft_for_prompt(draft_text, limit=2200):
+    s = str(draft_text or "").replace("\r\n", "\n").strip()
+    if not s:
+        return ""
+
+    try:
+        n = max(600, int(limit or 0))
+    except Exception:
+        n = 2200
+
+    if len(s) <= n:
+        return s
+    return s[-n:]
+
 def generate_chapter_context_pack(full_text, existing_pack=""):
     """生成结构化章节承接包，供后续章节续写参考。"""
     full = str(full_text or "").strip()
@@ -3453,7 +3468,8 @@ def generate_novel_batch(
     wmin, effective_target, _ = _parse_word_target(resolved_word_target, CHARS_PER_BATCH)
     cache_summary = _load_cache_summary()
     chapter_progress_block = _build_chapter_progress_block(chapter_number)
-    no_repeat_tail_block = _build_no_repeat_tail_block(resolved_draft_so_far)
+    draft_for_prompt = _clip_draft_for_prompt(resolved_draft_so_far)
+    no_repeat_tail_block = _build_no_repeat_tail_block(draft_for_prompt)
 
     prompt = f"""你是一位中文长篇小说作者，请基于以下信息继续写作。
 
@@ -3479,7 +3495,7 @@ def generate_novel_batch(
 {cache_summary}
 
 【当前已写草稿】
-{resolved_draft_so_far or "（暂无）"}
+{draft_for_prompt or "（暂无）"}
 {no_repeat_tail_block}
 
 请输出中文小说正文（目标{effective_target}字，最低不少于{wmin}字，允许上浮10%），要求：
@@ -4026,7 +4042,8 @@ def generate_novel_with_progress(
     wmin, effective_target, _ = _parse_word_target(resolved_word_target, CHARS_PER_BATCH)
     cache_summary = _load_cache_summary()
     chapter_progress_block = _build_chapter_progress_block(chapter_number)
-    no_repeat_tail_block = _build_no_repeat_tail_block(resolved_draft_so_far)
+    draft_for_prompt = _clip_draft_for_prompt(resolved_draft_so_far)
+    no_repeat_tail_block = _build_no_repeat_tail_block(draft_for_prompt)
 
     prompt = f"""你是一位中文长篇小说作者，请基于以下信息继续写作。
 
@@ -4052,7 +4069,7 @@ def generate_novel_with_progress(
 {cache_summary}
 
 【当前已写草稿】
-{resolved_draft_so_far or "（暂无）"}
+{draft_for_prompt or "（暂无）"}
 {no_repeat_tail_block}
 
 请输出中文小说正文（目标{effective_target}字，最低不少于{wmin}字，允许上浮10%），要求：
@@ -4551,5 +4568,6 @@ def check_chapter_consistency(
         "summary": summary,
         "error": None,
     }
+
 
 
