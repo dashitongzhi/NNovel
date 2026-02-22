@@ -31,11 +31,14 @@ def main() -> int:
     ok = True
 
     wmin, target, wmax = _parse_word_target("3000字")
-    ok &= _check("word_target single value", target == 3000 and wmin == 2550 and 3449 <= wmax <= 3450, f"got {(wmin, target, wmax)}")
+    ok &= _check("word_target single value", (wmin, target, wmax) == (2700, 3000, 3300), f"got {(wmin, target, wmax)}")
 
     wmin2, target2, wmax2 = _parse_word_target("2000-3000字")
-    ok &= _check("word_target range", (wmin2, target2, wmax2) == (2000, 2500, 3000), f"got {(wmin2, target2, wmax2)}")
+    ok &= _check("word_target range uses upper bound", (wmin2, target2, wmax2) == (2700, 3000, 3300), f"got {(wmin2, target2, wmax2)}")
 
+
+    wmin3, target3, wmax3 = _parse_word_target("2000字")
+    ok &= _check("word_target low value uses 2500 floor", (wmin3, target3, wmax3) == (2250, 2500, 2750), f"got {(wmin3, target3, wmax3)}")
     p1 = _build_chapter_progress_block(1)
     p2 = _build_chapter_progress_block(2)
     ok &= _check("chapter progress hidden for chapter 1", p1 == "", f"got {p1!r}")
@@ -69,4 +72,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

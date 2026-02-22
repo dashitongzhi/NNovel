@@ -3332,28 +3332,23 @@ def _count_effective_chars(text):
 
 
 def _parse_word_target(word_target_str, fallback=CHARS_PER_BATCH):
-    """解析用户字数设定为 (min, target, max) 三元组。"""
+    """解析用户字数设定为 (wmin, target, wmax)。
+
+    规则：target = max(2500, 用户设定值)；wmin = ceil(target * 0.9)。
+    """
     raw = str(word_target_str or "").strip()
     try:
-        base = max(200, int(fallback))
+        fallback_base = max(200, int(fallback))
     except Exception:
-        base = CHARS_PER_BATCH
-
-    if not raw:
-        return (int(base * 0.85), base, int(base * 1.15))
+        fallback_base = CHARS_PER_BATCH
 
     nums = [int(n) for n in re.findall(r"(\d{3,})", raw)]
-    if not nums:
-        return (int(base * 0.85), base, int(base * 1.15))
+    user_target = max(nums) if nums else fallback_base
 
-    if len(nums) >= 2:
-        lo, hi = min(nums), max(nums)
-        target = max(lo, (lo + hi) // 2)
-        return (lo, target, hi)
-
-    target = nums[0]
-    return (int(target * 0.85), target, int(target * 1.15))
-
+    target = max(2500, user_target)
+    wmin = (target * 9 + 9) // 10
+    wmax = (target * 11) // 10
+    return (wmin, target, wmax)
 
 def _build_chapter_progress_block(chapter_number):
     try:
@@ -3487,7 +3482,7 @@ def generate_novel_batch(
 {resolved_draft_so_far or "（暂无）"}
 {no_repeat_tail_block}
 
-请严格输出不少于{effective_target}字中文小说正文（目标{effective_target}字，允许上浮10%但不允许不足），要求：
+请输出中文小说正文（目标{effective_target}字，最低不少于{wmin}字，允许上浮10%），要求：
 1. 只输出正文内容，不要标题、编号、解释、注释、前言、后记。
 2. 【关键】你必须从【当前已写草稿】的末尾无缝续写新内容。严禁重写或复述已写草稿中的任何情节、场景和对话。
 3. 【关键】严禁重复【已完成章节摘要】中提到的事件。必须推进到新的情节节点。
@@ -3496,7 +3491,7 @@ def generate_novel_batch(
 6. 形成完整的叙事推进与情绪起伏，包含新的场景、对话或事件。
 7. 不要使用Markdown格式，不要代码块，不要多余说明。
 8. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
-9. 字数要求：目标{effective_target}字，不足{wmin}字不合格。请确保输出足够长度。
+9. 字数要求：至少{wmin}字，建议接近{effective_target}字。
 """
 
     ok, raw, err = _run_prompt(prompt, reasoning_effort_override=reasoning_effort)
@@ -3509,8 +3504,8 @@ def generate_novel_batch(
 
 
     actual_chars = _count_effective_chars(content)
-    if actual_chars < int(effective_target * 0.6):
-        remaining = max(200, effective_target - actual_chars)
+    if actual_chars < wmin:
+        remaining = max(200, wmin - actual_chars)
         extend_prompt = f"""你是中文长篇小说作者。以下是未完成的章节片段，请从末尾继续写作。
 
 【已写内容】
@@ -3519,7 +3514,7 @@ def generate_novel_batch(
 【已完成章节摘要】
 {cache_summary}
 
-请继续输出约{remaining}字正文，从上文末尾无缝衔接。
+请继续输出不少于{remaining}字正文，从上文末尾无缝衔接。
 不要重复上文内容，只输出新增正文。不要标题、解释、Markdown。"""
 
         ok2, raw2, _ = _run_prompt(extend_prompt, reasoning_effort_override=reasoning_effort)
@@ -4060,7 +4055,7 @@ def generate_novel_with_progress(
 {resolved_draft_so_far or "（暂无）"}
 {no_repeat_tail_block}
 
-请严格输出不少于{effective_target}字中文小说正文（目标{effective_target}字，允许上浮10%但不允许不足），要求：
+请输出中文小说正文（目标{effective_target}字，最低不少于{wmin}字，允许上浮10%），要求：
 1. 只输出正文内容，不要标题、编号、解释、注释、前言、后记。
 2. 【关键】你必须从【当前已写草稿】的末尾无缝续写新内容。严禁重写或复述已写草稿中的任何情节、场景和对话。
 3. 【关键】严禁重复【已完成章节摘要】中提到的事件。必须推进到新的情节节点。
@@ -4069,7 +4064,7 @@ def generate_novel_with_progress(
 6. 形成完整的叙事推进与情绪起伏，包含新的场景、对话或事件。
 7. 不要使用Markdown格式，不要代码块，不要多余说明。
 8. 注意根据语义和段意合理分段，每段200-400字为宜，段落之间用空行分隔。
-9. 字数要求：目标{effective_target}字，不足{wmin}字不合格。请确保输出足够长度。
+9. 字数要求：至少{wmin}字，建议接近{effective_target}字。
 """
 
     if on_progress:
@@ -4091,11 +4086,11 @@ def generate_novel_with_progress(
         return {"success": False, "content": "", "error": "生成结果为空"}
 
     actual_chars = _count_effective_chars(content)
-    if content and actual_chars < int(effective_target * 0.6):
+    if content and actual_chars < wmin:
         if on_progress:
             on_progress(content, "首轮字数不足，正在继续补写…")
 
-        remaining = max(200, effective_target - actual_chars)
+        remaining = max(200, wmin - actual_chars)
         extend_prompt = f"""你是中文长篇小说作者。以下是未完成的章节片段，请从末尾继续写作。
 
 【已写内容】
@@ -4104,7 +4099,7 @@ def generate_novel_with_progress(
 【已完成章节摘要】
 {cache_summary}
 
-请继续输出约{remaining}字正文，从上文末尾无缝衔接。
+请继续输出不少于{remaining}字正文，从上文末尾无缝衔接。
 不要重复上文内容，只输出新增正文。不要标题、解释、Markdown。"""
 
         def _on_extend_progress(partial_text, thinking_text):
@@ -4556,4 +4551,5 @@ def check_chapter_consistency(
         "summary": summary,
         "error": None,
     }
+
 
