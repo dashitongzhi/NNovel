@@ -1169,6 +1169,7 @@
   font-size: 11px;
   line-height: 1.32;
   color: rgba(20, 24, 30, 0.9);
+  text-align: left;
 }
 
 .book-cover-meta > div {
@@ -1191,30 +1192,15 @@
   bottom: 12px;
 }
 
-.book-cover-more-btn {
-  border: 1px solid rgba(153, 185, 214, 0.9);
-  border-radius: 999px;
-  background: rgba(246, 252, 255, 0.74);
-  color: rgba(20, 24, 30, 0.9);
-  font-size: 12px;
+.book-cover-menu-isolate {
+  display: inline-flex;
+}
+
+.book-cover-more-btn.toolbar-icon-btn {
+  color: rgba(10, 14, 18, 0.96) !important;
+  font-size: 20px;
+  font-weight: 700;
   line-height: 1;
-  font-weight: 600;
-  min-width: 48px;
-  height: 24px;
-  padding: 0 9px;
-  cursor: pointer;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.book-cover-more-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(131, 170, 205, 0.95);
-}
-
-.book-cover-more-btn.is-open {
-  background: rgba(231, 244, 255, 0.9);
-  border-color: rgba(95, 156, 210, 0.92);
-  color: rgba(20, 52, 84, 0.96);
 }
 
 /* Keep bookshelf cover size fixed in all runtime modes (no responsive stretching). */

@@ -3171,18 +3171,17 @@ function App() {
                         <div className="book-cover-meta-chapters">章节数：{chapterCount}</div>
                       </div>
                       <div className="book-cover-menu">
-                        <button
-                          className={`book-cover-more-btn ${menuExpanded ? "is-open" : ""}`}
-                          type="button"
-                          title={menuExpanded ? "收起操作" : "更多操作"}
-                          aria-label={menuExpanded ? "收起操作" : "更多操作"}
-                          aria-expanded={menuExpanded}
-                          onClick={() => {
-                            setBookshelfActionMenuBookId((prev) => (prev === book.id ? null : book.id));
-                          }}
-                        >
-                          更多
-                        </button>
+                        <ToolbarItemIsolate className="book-cover-menu-isolate">
+                          <ToolbarIconButton
+                            className="book-cover-more-btn"
+                            active={menuExpanded}
+                            title={menuExpanded ? "收起操作" : "更多操作"}
+                            icon="⋮"
+                            onClick={() => {
+                              setBookshelfActionMenuBookId((prev) => (prev === book.id ? null : book.id));
+                            }}
+                          />
+                        </ToolbarItemIsolate>
                       </div>
                     </div>
                     {(active || menuExpanded) ? (
