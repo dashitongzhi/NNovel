@@ -804,15 +804,43 @@ def restore_auth_backup():
 
 # ---------- Book shelf helpers ----------
 
+def _book_chapter_count_locked(book_meta):
+    if not isinstance(book_meta, dict):
+        return 0
+    try:
+        paths = _book_paths_from_meta(book_meta)
+        chapters_file = str(paths.get("chapters_file", "") or "").strip()
+        if not chapters_file or not os.path.exists(chapters_file):
+            return 0
+        data = _read_json(chapters_file)
+        if not isinstance(data, dict):
+            return 0
+        chapters = data.get("chapters", [])
+        if not isinstance(chapters, list):
+            return 0
+        return max(0, len(chapters))
+    except Exception:
+        return 0
+
+
 def get_bookshelf():
     with _LOCK:
         _, meta, paths = _runtime_context_locked()
         library = _load_library_locked()
+        books = []
+        for item in library.get("books", []):
+            if not isinstance(item, dict):
+                continue
+            row = copy.deepcopy(item)
+            chapter_count = _book_chapter_count_locked(row)
+            row["chapter_count"] = chapter_count
+            row["total_chapters"] = chapter_count
+            books.append(row)
         return {
             "active_book_id": meta["id"],
             "active_book": meta,
             "active_paths": paths,
-            "books": copy.deepcopy(library.get("books", [])),
+            "books": books,
         }
 
 

@@ -15,7 +15,7 @@ import { useConfigStore } from "@/stores/configStore";
 import { useDraftStore } from "@/stores/draftStore";
 import { useGenerationStore } from "@/stores/generationStore";
 import { useDiscardedStore } from "@/stores/discardedStore";
-import { useUiStore, type ThemeMode } from "@/stores/uiStore";
+import { useUiStore, type ThemeMode, type ToastType } from "@/stores/uiStore";
 import { diffMemory } from "@/utils/memory";
 import { generateChapterTitle, saveChapter } from "@/services/endpoints/chapter";
 import { generateOutline } from "@/services/endpoints/outline";
@@ -89,19 +89,19 @@ const DOUBAO_DEFAULT_MODELS = [
   "doubao-seed-1-6-flash-250828",
 ];
 const BOOK_CARD_FIXED_STYLE: CSSProperties = {
-  width: "100%",
-  maxWidth: "100%",
+  width: "fit-content",
+  maxWidth: "fit-content",
   minWidth: 0,
-  justifySelf: "stretch",
+  justifySelf: "center",
 };
 const BOOK_COVER_FIXED_STYLE: CSSProperties = {
-  width: 128,
-  minWidth: 128,
-  maxWidth: 128,
-  height: 188,
-  minHeight: 188,
-  maxHeight: 188,
-  flex: "0 0 188px",
+  width: 170,
+  minWidth: 170,
+  maxWidth: 170,
+  height: 250,
+  minHeight: 250,
+  maxHeight: 250,
+  flex: "0 0 250px",
   margin: "0 auto",
   position: "relative",
   boxSizing: "border-box",
@@ -570,7 +570,10 @@ function App() {
   const [bookshelfOpen, setBookshelfOpen] = useState(false);
   const [bookshelfLoading, setBookshelfLoading] = useState(false);
   const [bookshelf, setBookshelf] = useState<BookshelfPayload>({ books: [] });
+  const [bookshelfActionMenuBookId, setBookshelfActionMenuBookId] = useState<string | null>(null);
+  const [bookshelfNotice, setBookshelfNotice] = useState<{ message: string; type: ToastType } | null>(null);
   const [newBookTitle, setNewBookTitle] = useState("");
+  const bookshelfNoticeTimerRef = useRef<number | null>(null);
 
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [chaptersLoading, setChaptersLoading] = useState(false);
@@ -945,6 +948,10 @@ function App() {
     if (engineSwitchReleaseRef.current != null) {
       window.clearTimeout(engineSwitchReleaseRef.current);
       engineSwitchReleaseRef.current = null;
+    }
+    if (bookshelfNoticeTimerRef.current != null) {
+      window.clearTimeout(bookshelfNoticeTimerRef.current);
+      bookshelfNoticeTimerRef.current = null;
     }
   }, []);
 
@@ -1417,7 +1424,21 @@ function App() {
 
   const closeBookshelfModal = (): void => {
     if (configStore.config.first_run_required) return;
+    setBookshelfActionMenuBookId(null);
+    setBookshelfNotice(null);
     setBookshelfOpen(false);
+  };
+
+  const showBookshelfNotice = (message: string, type: ToastType = "info"): void => {
+    if (bookshelfNoticeTimerRef.current != null) {
+      window.clearTimeout(bookshelfNoticeTimerRef.current);
+      bookshelfNoticeTimerRef.current = null;
+    }
+    setBookshelfNotice({ message, type });
+    bookshelfNoticeTimerRef.current = window.setTimeout(() => {
+      setBookshelfNotice(null);
+      bookshelfNoticeTimerRef.current = null;
+    }, 1800);
   };
 
   const bookshelfTip = useMemo(() => {
@@ -1427,6 +1448,28 @@ function App() {
     }
     return "每本书会在独立文件夹中保存：大纲、参考、缓存、章节、草稿都会单独隔离。";
   }, [bookshelf.active_paths]);
+
+  const formatBookUpdatedAt = (value: unknown): string => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "-";
+    const fixed = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/);
+    if (fixed) {
+      const month = fixed[2].padStart(2, "0");
+      const day = fixed[3].padStart(2, "0");
+      const hour = (fixed[4] || "0").padStart(2, "0");
+      const minute = (fixed[5] || "0").padStart(2, "0");
+      return `${month}-${day} ${hour}:${minute}`;
+    }
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const month = String(parsed.getMonth() + 1).padStart(2, "0");
+      const day = String(parsed.getDate()).padStart(2, "0");
+      const hour = String(parsed.getHours()).padStart(2, "0");
+      const minute = String(parsed.getMinutes()).padStart(2, "0");
+      return `${month}-${day} ${hour}:${minute}`;
+    }
+    return "-";
+  };
 
   const createBookQuick = async (): Promise<void> => {
     setBookshelfOpen(true);
@@ -1817,7 +1860,7 @@ function App() {
   const createBookAction = async (): Promise<void> => {
     const title = newBookTitle.trim();
     if (!title) {
-      ui.addToast("书名不能为空", "error");
+      showBookshelfNotice("书名不能为空", "error");
       return;
     }
     try {
@@ -3061,6 +3104,11 @@ function App() {
               onClick={closeBookshelfModal}
             />
           </div>
+          {bookshelfNotice ? (
+            <div className="bookshelf-local-toast-wrap" aria-live="polite" aria-atomic="true">
+              <div className={`toast toast-${bookshelfNotice.type} bookshelf-local-toast`}>{bookshelfNotice.message}</div>
+            </div>
+          ) : null}
           <p id="bookshelf-tip" className="consistency-summary bookshelf-tip">{bookshelfTip}</p>
           <div className="bookshelf-create-row">
             <div className="settings-row bookshelf-create-input">
@@ -3105,37 +3153,76 @@ function App() {
               (bookshelf.books || []).map((book) => {
                 const activeId = bookshelf.active_book?.id || bookshelf.active_book_id || "";
                 const active = activeId === book.id;
+                const menuExpanded = bookshelfActionMenuBookId === book.id;
+                const showDeleteAction = menuExpanded;
+                const showSwitchAction = !active && menuExpanded;
                 const rawChapterCount = book.chapter_count ?? book.total_chapters;
-                const chapterCountText = String(rawChapterCount ?? "").trim()
-                  ? `${String(rawChapterCount).trim()}章`
-                  : "-";
+                const parsedChapterCount = Number.parseInt(String(rawChapterCount ?? ""), 10);
+                const chapterCount = Number.isFinite(parsedChapterCount) && parsedChapterCount >= 0
+                  ? parsedChapterCount
+                  : 0;
+                const updatedAtText = formatBookUpdatedAt(book.updated_at);
                 return (
                   <div className={`book-card ${active ? "active" : ""}`} key={book.id} style={BOOK_CARD_FIXED_STYLE}>
                     <div className="book-cover" style={BOOK_COVER_FIXED_STYLE}>
                       <div className="book-cover-title">{book.title || "未命名作品"}</div>
                       <div className="book-cover-meta">
-                        <div>更新时间：{book.updated_at || "-"}</div>
-                        <div>章节数：{chapterCountText}</div>
+                        <div className="book-cover-meta-updated">更新时间：{updatedAtText}</div>
+                        <div className="book-cover-meta-chapters">章节数：{chapterCount}</div>
                       </div>
-                      <div className="book-cover-menu" aria-hidden="true">⋮</div>
+                      <div className="book-cover-menu">
+                        <button
+                          className={`book-cover-more-btn ${menuExpanded ? "is-open" : ""}`}
+                          type="button"
+                          title={menuExpanded ? "收起操作" : "更多操作"}
+                          aria-label={menuExpanded ? "收起操作" : "更多操作"}
+                          aria-expanded={menuExpanded}
+                          onClick={() => {
+                            setBookshelfActionMenuBookId((prev) => (prev === book.id ? null : book.id));
+                          }}
+                        >
+                          更多
+                        </button>
+                      </div>
                     </div>
-                    <div className="modal-actions bookshelf-book-actions toolbar-group right" style={{ marginTop: 8 }}>
-                      <ToolbarItemIsolate>
-                        <ToolbarIconButton
-                          active={active}
-                          title={active ? "当前写作中" : "切换到此书"}
-                          icon={active ? "✅" : "🔁"}
-                          onClick={() => { if (!active) void switchBookAction(book.id); }}
-                        />
-                      </ToolbarItemIsolate>
-                      <ToolbarItemIsolate>
-                        <ToolbarIconButton
-                          title="删除书籍（同步删除文件夹）"
-                          icon="🗑️"
-                          onClick={() => void deleteBookAction(book.id, String(book.title || "未命名作品"))}
-                        />
-                      </ToolbarItemIsolate>
-                    </div>
+                    {(active || menuExpanded) ? (
+                      <div className="modal-actions bookshelf-book-actions toolbar-group right" style={{ marginTop: 8 }}>
+                        {active ? (
+                          <ToolbarItemIsolate>
+                            <ToolbarIconButton
+                              active
+                              title="当前写作中"
+                              icon="✅"
+                              onClick={() => showBookshelfNotice("已经在此书籍", "info")}
+                            />
+                          </ToolbarItemIsolate>
+                        ) : null}
+                        {showSwitchAction ? (
+                          <ToolbarItemIsolate>
+                            <ToolbarIconButton
+                              title="切换到此书"
+                              icon="🔁"
+                              onClick={() => {
+                                setBookshelfActionMenuBookId(null);
+                                void switchBookAction(book.id);
+                              }}
+                            />
+                          </ToolbarItemIsolate>
+                        ) : null}
+                        {showDeleteAction ? (
+                          <ToolbarItemIsolate>
+                            <ToolbarIconButton
+                              title="删除书籍（同步删除文件夹）"
+                              icon="🗑️"
+                              onClick={() => {
+                                setBookshelfActionMenuBookId(null);
+                                void deleteBookAction(book.id, String(book.title || "未命名作品"));
+                              }}
+                            />
+                          </ToolbarItemIsolate>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })

@@ -1031,8 +1031,23 @@
 }
 
 .bookshelf-modal-content {
+  position: relative;
   width: min(1120px, 95vw);
   max-height: 92vh;
+}
+
+.bookshelf-local-toast-wrap {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(320px, calc(100% - 140px));
+  z-index: 8;
+  pointer-events: none;
+}
+
+.bookshelf-local-toast {
+  width: 100%;
 }
 
 .bookshelf-tip {
@@ -1084,7 +1099,7 @@
   gap: 14px 12px;
   max-height: 50vh;
   align-content: start;
-  grid-auto-rows: minmax(292px, auto);
+  grid-auto-rows: auto;
 }
 
 .bookshelf-list > .discarded-empty {
@@ -1093,28 +1108,32 @@
 }
 
 .book-card {
-  width: 100%;
-  max-width: 100%;
+  width: fit-content;
+  max-width: fit-content;
   min-width: 0;
-  min-height: 250px;
+  min-height: 0;
   height: auto;
-  padding: 10px;
+  padding: 0;
   gap: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .book-cover {
-  width: 128px !important;
-  min-width: 128px !important;
-  max-width: 128px !important;
-  height: 188px !important;
-  min-height: 188px !important;
-  max-height: 188px !important;
-  flex: 0 0 188px;
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
+  height: 250px !important;
+  min-height: 250px !important;
+  max-height: 250px !important;
+  flex: 0 0 250px;
   margin: 0 auto;
-  padding: 10px 10px 10px 11px;
+  padding: 12px 12px 12px 13px;
   border-radius: 16px;
   border: 1px solid rgba(164, 198, 226, 0.92);
   background: linear-gradient(128deg, rgba(213, 232, 252, 0.96) 0%, rgba(214, 235, 244, 0.93) 52%, rgba(222, 244, 233, 0.95) 100%);
@@ -1128,15 +1147,15 @@
 
 .book-cover-title {
   position: absolute;
-  inset: 14px 10px 54px 10px;
+  inset: 18px 14px 104px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   color: rgba(16, 20, 26, 0.96);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.28;
+  line-height: 1.2;
   letter-spacing: 0.01em;
   word-break: break-word;
   overflow: hidden;
@@ -1144,11 +1163,11 @@
 
 .book-cover-meta {
   position: absolute;
-  left: 10px;
-  right: 30px;
-  bottom: 10px;
-  font-size: 12px;
-  line-height: 1.4;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  font-size: 11px;
+  line-height: 1.32;
   color: rgba(20, 24, 30, 0.9);
 }
 
@@ -1158,27 +1177,56 @@
   text-overflow: ellipsis;
 }
 
+.book-cover-meta-updated {
+  padding-right: 0;
+}
+
+.book-cover-meta-chapters {
+  padding-right: 56px;
+}
+
 .book-cover-menu {
   position: absolute;
-  right: 8px;
-  bottom: 4px;
-  font-size: 26px;
-  font-weight: 700;
+  right: 10px;
+  bottom: 12px;
+}
+
+.book-cover-more-btn {
+  border: 1px solid rgba(153, 185, 214, 0.9);
+  border-radius: 999px;
+  background: rgba(246, 252, 255, 0.74);
+  color: rgba(20, 24, 30, 0.9);
+  font-size: 12px;
   line-height: 1;
-  color: rgba(14, 19, 24, 0.9);
-  pointer-events: none;
+  font-weight: 600;
+  min-width: 48px;
+  height: 24px;
+  padding: 0 9px;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.book-cover-more-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(131, 170, 205, 0.95);
+}
+
+.book-cover-more-btn.is-open {
+  background: rgba(231, 244, 255, 0.9);
+  border-color: rgba(95, 156, 210, 0.92);
+  color: rgba(20, 52, 84, 0.96);
 }
 
 /* Keep bookshelf cover size fixed in all runtime modes (no responsive stretching). */
 #bookshelf-modal .book-cover,
 #ui-layer-root #bookshelf-modal .book-cover {
-  width: 128px !important;
-  min-width: 128px !important;
-  max-width: 128px !important;
-  height: 188px !important;
-  min-height: 188px !important;
-  max-height: 188px !important;
-  flex: 0 0 188px !important;
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
+  height: 250px !important;
+  min-height: 250px !important;
+  max-height: 250px !important;
+  flex: 0 0 250px !important;
   margin: 0 auto !important;
   position: relative;
   border-radius: 16px;
@@ -1228,13 +1276,13 @@
 
   .bookshelf-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    justify-content: stretch;
+    justify-content: center;
     max-height: 46vh;
-    grid-auto-rows: minmax(288px, auto);
+    grid-auto-rows: auto;
   }
 
   .book-card {
-    width: 100%;
+    width: fit-content;
   }
 }
 
@@ -3124,6 +3172,33 @@ html.ui-scrolling #bookshelf-modal .bookshelf-list {
 
 html[data-theme="dark"].ui-scrolling #bookshelf-modal .bookshelf-list {
   scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
+}
+
+/* Bookshelf cards: remove outer glass panel, keep only cover-style block. */
+#bookshelf-modal .book-card,
+#ui-layer-root #bookshelf-modal .book-card {
+  width: fit-content !important;
+  max-width: fit-content !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+#bookshelf-modal .book-card.active,
+#ui-layer-root #bookshelf-modal .book-card.active {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#bookshelf-modal .book-card.active .book-cover,
+#ui-layer-root #bookshelf-modal .book-card.active .book-cover {
+  box-shadow: 0 0 0 2px rgba(70, 145, 222, 0.54);
 }
 
 
