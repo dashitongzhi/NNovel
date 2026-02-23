@@ -1096,48 +1096,92 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: 196px;
+  min-height: 250px;
   height: auto;
   padding: 10px;
-  gap: 10px;
+  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .book-cover {
-  width: 124px !important;
-  min-width: 124px !important;
-  max-width: 124px !important;
-  height: 170px !important;
-  min-height: 170px !important;
-  max-height: 170px !important;
-  flex: 0 0 170px;
+  width: 128px !important;
+  min-width: 128px !important;
+  max-width: 128px !important;
+  height: 188px !important;
+  min-height: 188px !important;
+  max-height: 188px !important;
+  flex: 0 0 188px;
   margin: 0 auto;
-  padding: 8px 10px;
-  font-size: 15px;
-  line-height: 1.35;
+  padding: 10px 10px 10px 11px;
+  border-radius: 16px;
+  border: 1px solid rgba(164, 198, 226, 0.92);
+  background: linear-gradient(128deg, rgba(213, 232, 252, 0.96) 0%, rgba(214, 235, 244, 0.93) 52%, rgba(222, 244, 233, 0.95) 100%);
+  position: relative;
   overflow: hidden;
 }
 
 .book-meta {
-  font-size: 13px;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+  display: none;
+}
+
+.book-cover-title {
+  position: absolute;
+  inset: 14px 10px 54px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: rgba(16, 20, 26, 0.96);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: 0.01em;
   word-break: break-word;
+  overflow: hidden;
+}
+
+.book-cover-meta {
+  position: absolute;
+  left: 10px;
+  right: 30px;
+  bottom: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(20, 24, 30, 0.9);
+}
+
+.book-cover-meta > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-cover-menu {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(14, 19, 24, 0.9);
+  pointer-events: none;
 }
 
 /* Keep bookshelf cover size fixed in all runtime modes (no responsive stretching). */
 #bookshelf-modal .book-cover,
 #ui-layer-root #bookshelf-modal .book-cover {
-  width: 124px !important;
-  min-width: 124px !important;
-  max-width: 124px !important;
-  height: 170px !important;
-  min-height: 170px !important;
-  max-height: 170px !important;
-  flex: 0 0 170px !important;
+  width: 128px !important;
+  min-width: 128px !important;
+  max-width: 128px !important;
+  height: 188px !important;
+  min-height: 188px !important;
+  max-height: 188px !important;
+  flex: 0 0 188px !important;
   margin: 0 auto !important;
+  position: relative;
+  border-radius: 16px;
   box-sizing: border-box;
   overflow: hidden;
 }

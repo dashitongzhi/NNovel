@@ -95,14 +95,15 @@ const BOOK_CARD_FIXED_STYLE: CSSProperties = {
   justifySelf: "stretch",
 };
 const BOOK_COVER_FIXED_STYLE: CSSProperties = {
-  width: 124,
-  minWidth: 124,
-  maxWidth: 124,
-  height: 170,
-  minHeight: 170,
-  maxHeight: 170,
-  flex: "0 0 170px",
+  width: 128,
+  minWidth: 128,
+  maxWidth: 128,
+  height: 188,
+  minHeight: 188,
+  maxHeight: 188,
+  flex: "0 0 188px",
   margin: "0 auto",
+  position: "relative",
   boxSizing: "border-box",
   overflow: "hidden",
 };
@@ -3104,13 +3105,21 @@ function App() {
               (bookshelf.books || []).map((book) => {
                 const activeId = bookshelf.active_book?.id || bookshelf.active_book_id || "";
                 const active = activeId === book.id;
+                const rawChapterCount = book.chapter_count ?? book.total_chapters;
+                const chapterCountText = String(rawChapterCount ?? "").trim()
+                  ? `${String(rawChapterCount).trim()}章`
+                  : "-";
                 return (
                   <div className={`book-card ${active ? "active" : ""}`} key={book.id} style={BOOK_CARD_FIXED_STYLE}>
                     <div className="book-cover" style={BOOK_COVER_FIXED_STYLE}>
-                      {book.title}
+                      <div className="book-cover-title">{book.title || "未命名作品"}</div>
+                      <div className="book-cover-meta">
+                        <div>更新时间：{book.updated_at || "-"}</div>
+                        <div>章节数：{chapterCountText}</div>
+                      </div>
+                      <div className="book-cover-menu" aria-hidden="true">⋮</div>
                     </div>
-                    <div className="book-meta">更新时间：{book.updated_at || "-"}</div>
-                    <div className="modal-actions bookshelf-book-actions toolbar-group right" style={{ marginTop: 10 }}>
+                    <div className="modal-actions bookshelf-book-actions toolbar-group right" style={{ marginTop: 8 }}>
                       <ToolbarItemIsolate>
                         <ToolbarIconButton
                           active={active}

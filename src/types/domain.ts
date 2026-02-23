@@ -31,7 +31,14 @@ export interface AppConfig {
   personal_model: string;
   proxy_port: string;
   cache: string;
-  books?: Array<{ id: string; title: string; folder?: string; updated_at?: string }>;
+  books?: Array<{
+    id: string;
+    title: string;
+    folder?: string;
+    updated_at?: string;
+    chapter_count?: number | string;
+    total_chapters?: number | string;
+  }>;
   active_book?: { id: string; title: string; folder?: string };
   book_paths?: Record<string, string>;
   first_run_required?: boolean;
@@ -100,7 +107,14 @@ export interface ChapterSaveResponse {
 }
 
 export interface BookshelfPayload {
-  books: Array<{ id: string; title: string; folder?: string; updated_at?: string }>;
+  books: Array<{
+    id: string;
+    title: string;
+    folder?: string;
+    updated_at?: string;
+    chapter_count?: number | string;
+    total_chapters?: number | string;
+  }>;
   active_book?: { id: string; title: string; folder?: string };
   active_book_id?: string;
   active_paths?: Record<string, string>;
