@@ -89,18 +89,19 @@ const DOUBAO_DEFAULT_MODELS = [
   "doubao-seed-1-6-flash-250828",
 ];
 const BOOK_CARD_FIXED_STYLE: CSSProperties = {
-  width: 320,
+  width: "100%",
   maxWidth: "100%",
-  justifySelf: "center",
+  minWidth: 0,
+  justifySelf: "stretch",
 };
 const BOOK_COVER_FIXED_STYLE: CSSProperties = {
-  width: 156,
-  minWidth: 156,
-  maxWidth: 156,
-  height: 90,
-  minHeight: 90,
-  maxHeight: 90,
-  flex: "0 0 90px",
+  width: 124,
+  minWidth: 124,
+  maxWidth: 124,
+  height: 170,
+  minHeight: 170,
+  maxHeight: 170,
+  flex: "0 0 170px",
   margin: "0 auto",
   boxSizing: "border-box",
   overflow: "hidden",

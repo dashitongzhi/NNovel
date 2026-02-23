@@ -1079,12 +1079,12 @@
 
 .bookshelf-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 320px));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   justify-content: center;
-  gap: 14px;
+  gap: 14px 12px;
   max-height: 50vh;
   align-content: start;
-  grid-auto-rows: minmax(224px, auto);
+  grid-auto-rows: minmax(292px, auto);
 }
 
 .bookshelf-list > .discarded-empty {
@@ -1093,22 +1093,23 @@
 }
 
 .book-card {
-  width: 320px;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   min-height: 196px;
   height: auto;
-  padding: 12px;
+  padding: 10px;
   gap: 10px;
 }
 
 .book-cover {
-  width: 156px !important;
-  min-width: 156px !important;
-  max-width: 156px !important;
-  height: 90px !important;
-  min-height: 90px !important;
-  max-height: 90px !important;
-  flex: 0 0 90px;
+  width: 124px !important;
+  min-width: 124px !important;
+  max-width: 124px !important;
+  height: 170px !important;
+  min-height: 170px !important;
+  max-height: 170px !important;
+  flex: 0 0 170px;
   margin: 0 auto;
   padding: 8px 10px;
   font-size: 15px;
@@ -1129,13 +1130,13 @@
 /* Keep bookshelf cover size fixed in all runtime modes (no responsive stretching). */
 #bookshelf-modal .book-cover,
 #ui-layer-root #bookshelf-modal .book-cover {
-  width: 156px !important;
-  min-width: 156px !important;
-  max-width: 156px !important;
-  height: 90px !important;
-  min-height: 90px !important;
-  max-height: 90px !important;
-  flex: 0 0 90px !important;
+  width: 124px !important;
+  min-width: 124px !important;
+  max-width: 124px !important;
+  height: 170px !important;
+  min-height: 170px !important;
+  max-height: 170px !important;
+  flex: 0 0 170px !important;
   margin: 0 auto !important;
   box-sizing: border-box;
   overflow: hidden;
@@ -1155,6 +1156,18 @@
   z-index: 3;
 }
 
+@media (max-width: 1260px) {
+  .bookshelf-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1060px) {
+  .bookshelf-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .bookshelf-modal-content {
     width: min(96vw, 780px);
@@ -1170,14 +1183,20 @@
   }
 
   .bookshelf-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
     max-height: 46vh;
-    grid-auto-rows: minmax(224px, auto);
+    grid-auto-rows: minmax(288px, auto);
   }
 
   .book-card {
     width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .bookshelf-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -3004,6 +3023,62 @@ html.ui-scrolling #app .sidebar {
 }
 
 html[data-theme="dark"].ui-scrolling #app .sidebar {
+  scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
+}
+
+/* Bookshelf modal lives in LayerPortal (outside #app), so mirror draft-area scrollbar config explicitly. */
+#bookshelf-modal .bookshelf-list {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+#bookshelf-modal .bookshelf-list::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+#bookshelf-modal .bookshelf-list::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+#bookshelf-modal .bookshelf-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: rgba(112, 126, 152, 0);
+  opacity: 0;
+  transition: background-color 220ms ease, opacity 220ms ease;
+}
+
+html.ui-scrolling #bookshelf-modal .bookshelf-list::-webkit-scrollbar-thumb,
+#bookshelf-modal .bookshelf-list:hover::-webkit-scrollbar-thumb,
+#bookshelf-modal .bookshelf-list:active::-webkit-scrollbar-thumb {
+  background-color: rgba(112, 126, 152, 0.52);
+  opacity: 1;
+}
+
+[data-theme="dark"] #bookshelf-modal .bookshelf-list::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0);
+}
+
+html[data-theme="dark"].ui-scrolling #bookshelf-modal .bookshelf-list::-webkit-scrollbar-thumb,
+[data-theme="dark"] #bookshelf-modal .bookshelf-list:hover::-webkit-scrollbar-thumb,
+[data-theme="dark"] #bookshelf-modal .bookshelf-list:active::-webkit-scrollbar-thumb {
+  background-color: rgba(176, 200, 238, 0.46);
+  opacity: 1;
+}
+
+#bookshelf-modal .bookshelf-list::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html.ui-scrolling #bookshelf-modal .bookshelf-list {
+  scrollbar-color: rgba(112, 126, 152, 0.52) transparent;
+}
+
+html[data-theme="dark"].ui-scrolling #bookshelf-modal .bookshelf-list {
   scrollbar-color: rgba(176, 200, 238, 0.46) transparent;
 }
 
