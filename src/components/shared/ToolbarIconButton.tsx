@@ -43,8 +43,9 @@ export function ToolbarIconButton(props: ToolbarIconButtonProps) {
         }
         props.onClick();
       }}
-      dangerouslySetInnerHTML={{ __html: props.icon }}
-    />
+    >
+      <span className="toolbar-icon-glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: props.icon }} />
+    </button>
   );
 }
 

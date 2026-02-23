@@ -69,7 +69,8 @@ interface EngineMenuLayout {
 
 export function Toolbar(props: ToolbarProps) {
   const ICONS = {
-    sidebar: "☰",
+    sidebarExpanded: "⬅️",
+    sidebarCollapsed: "➡️",
     outline: "📑",
     selfCheck: "🧪",
     newBook: "➕",
@@ -188,7 +189,12 @@ export function Toolbar(props: ToolbarProps) {
         }}
       >
         <div className="toolbar-group left" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {IconBtn({ title: props.sidebarCollapsed ? "展开侧栏" : "收起侧栏", icon: ICONS.sidebar, onClick: props.onToggleSidebar })}
+          {IconBtn({
+            id: "sidebar-toggle-btn",
+            title: props.sidebarCollapsed ? "展开侧栏" : "收起侧栏",
+            icon: props.sidebarCollapsed ? ICONS.sidebarCollapsed : ICONS.sidebarExpanded,
+            onClick: props.onToggleSidebar,
+          })}
           <div id="toolbar-status-bar" className="toolbar-status-bar">
             <span
               id="toolbar-status-engine"
