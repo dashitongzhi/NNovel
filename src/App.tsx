@@ -88,6 +88,30 @@ const DOUBAO_DEFAULT_MODELS = [
   "doubao-seed-1-6-lite-251015",
   "doubao-seed-1-6-flash-250828",
 ];
+const BOOK_CARD_FIXED_STYLE: CSSProperties = {
+  width: 320,
+  maxWidth: "100%",
+  justifySelf: "center",
+};
+const BOOK_COVER_FIXED_STYLE: CSSProperties = {
+  width: 156,
+  minWidth: 156,
+  maxWidth: 156,
+  height: 90,
+  minHeight: 90,
+  maxHeight: 90,
+  flex: "0 0 90px",
+  margin: "0 auto",
+  boxSizing: "border-box",
+  overflow: "hidden",
+};
+const NEW_BOOK_INPUT_STYLE: CSSProperties = {
+  pointerEvents: "auto",
+  userSelect: "text",
+  WebkitUserSelect: "text",
+  position: "relative",
+  zIndex: 3,
+};
 
 type FontPreset = "default" | "pingfang" | "yahei" | "source_han_sans" | "source_han_serif" | "wenkai";
 
@@ -3040,7 +3064,17 @@ function App() {
             <div className="settings-row bookshelf-create-input">
               <label className="settings-label">新书书名</label>
               <div className="settings-control">
-                <input id="new-book-title-input" className="settings-number-input" type="text" value={newBookTitle} onChange={(e) => setNewBookTitle(e.target.value)} placeholder="输入书名后创建" />
+                <input
+                  id="new-book-title-input"
+                  className="settings-number-input"
+                  type="text"
+                  value={newBookTitle}
+                  style={NEW_BOOK_INPUT_STYLE}
+                  placeholder="输入书名后创建"
+                  onChange={(e) => setNewBookTitle(e.target.value)}
+                  onInput={(e) => setNewBookTitle((e.target as HTMLInputElement).value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
               </div>
             </div>
             <div className="modal-actions bookshelf-create-actions toolbar-group right">
@@ -3070,8 +3104,8 @@ function App() {
                 const activeId = bookshelf.active_book?.id || bookshelf.active_book_id || "";
                 const active = activeId === book.id;
                 return (
-                  <div className={`book-card ${active ? "active" : ""}`} key={book.id}>
-                    <div className="book-cover">
+                  <div className={`book-card ${active ? "active" : ""}`} key={book.id} style={BOOK_CARD_FIXED_STYLE}>
+                    <div className="book-cover" style={BOOK_COVER_FIXED_STYLE}>
                       {book.title}
                     </div>
                     <div className="book-meta">更新时间：{book.updated_at || "-"}</div>

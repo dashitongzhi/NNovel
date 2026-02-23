@@ -1079,16 +1079,24 @@
 
 .bookshelf-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 320px));
+  justify-content: center;
   gap: 14px;
   max-height: 50vh;
   align-content: start;
-  grid-auto-rows: 224px;
+  grid-auto-rows: minmax(224px, auto);
+}
+
+.bookshelf-list > .discarded-empty {
+  grid-column: 1 / -1;
+  text-align: center;
 }
 
 .book-card {
+  width: 320px;
+  max-width: 100%;
   min-height: 196px;
-  height: 100%;
+  height: auto;
   padding: 12px;
   gap: 10px;
 }
@@ -1118,6 +1126,35 @@
   word-break: break-word;
 }
 
+/* Keep bookshelf cover size fixed in all runtime modes (no responsive stretching). */
+#bookshelf-modal .book-cover,
+#ui-layer-root #bookshelf-modal .book-cover {
+  width: 156px !important;
+  min-width: 156px !important;
+  max-width: 156px !important;
+  height: 90px !important;
+  min-height: 90px !important;
+  max-height: 90px !important;
+  flex: 0 0 90px !important;
+  margin: 0 auto !important;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#bookshelf-modal .bookshelf-create-input,
+#bookshelf-modal .bookshelf-create-input .settings-control {
+  position: relative;
+  z-index: 3;
+}
+
+#bookshelf-modal #new-book-title-input {
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  position: relative;
+  z-index: 3;
+}
+
 @media (max-width: 900px) {
   .bookshelf-modal-content {
     width: min(96vw, 780px);
@@ -1133,9 +1170,14 @@
   }
 
   .bookshelf-list {
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: 1fr;
+    justify-content: stretch;
     max-height: 46vh;
-    grid-auto-rows: 224px;
+    grid-auto-rows: minmax(224px, auto);
+  }
+
+  .book-card {
+    width: 100%;
   }
 }
 

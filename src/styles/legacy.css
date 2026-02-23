@@ -1376,7 +1376,7 @@ select.config-select-btn:focus {
 
 .bookshelf-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 12px;
     max-height: 52vh;
     overflow-y: auto;
@@ -1400,20 +1400,26 @@ select.config-select-btn:focus {
 }
 
 .book-cover {
-    width: 100%;
-    height: 80px;
+    width: 156px;
+    min-width: 156px;
+    max-width: 156px;
+    height: 90px;
+    min-height: 90px;
+    max-height: 90px;
     border-radius: 10px;
     background: linear-gradient(135deg, rgba(0, 122, 255, 0.18), rgba(52, 199, 89, 0.14));
     border: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0 auto;
     text-align: center;
-    padding: 6px;
+    padding: 8px 10px;
     font-size: 14px;
     font-weight: 700;
     color: var(--text-primary);
     line-height: 1.35;
+    overflow: hidden;
     word-break: break-word;
 }
 
