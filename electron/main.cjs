@@ -290,7 +290,7 @@ function createWindow() {
     height: 900,
     minWidth: 1100,
     minHeight: 720,
-    title: "NNovel React",
+    title: "NNovel",
     show: false,
     backgroundColor: "#0b111c",
     autoHideMenuBar: true,
