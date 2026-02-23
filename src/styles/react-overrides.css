@@ -1153,9 +1153,9 @@
   justify-content: center;
   text-align: center;
   color: rgba(16, 20, 26, 0.96);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.22;
   letter-spacing: 0.01em;
   word-break: break-word;
   overflow: hidden;
@@ -1165,17 +1165,19 @@
   position: absolute;
   left: 12px;
   right: 12px;
-  bottom: 12px;
-  font-size: 11px;
+  bottom: 40px;
+  font-size: 12px;
   line-height: 1.32;
+  font-weight: 600;
   color: rgba(20, 24, 30, 0.9);
   text-align: left;
 }
 
 .book-cover-meta > div {
+  padding-right: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .book-cover-meta-updated {
@@ -1183,7 +1185,7 @@
 }
 
 .book-cover-meta-chapters {
-  padding-right: 56px;
+  padding-right: 0;
 }
 
 .book-cover-menu {
