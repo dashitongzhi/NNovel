@@ -1310,6 +1310,18 @@
   mask-repeat: repeat;
 }
 
+#chapter-manager-modal .consistency-conflict-list {
+  --scroll-fade-edge: 0px;
+  -webkit-mask-image: none;
+  mask-image: none;
+  -webkit-mask-size: auto;
+  mask-size: auto;
+  -webkit-mask-position: initial;
+  mask-position: initial;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
 #self-check-modal .consistency-summary {
   margin-bottom: 8px;
 }
